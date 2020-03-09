@@ -1,0 +1,17 @@
+debug: true
+
+log:
+  level: "info"
+
+http:
+  addr: "0.0.0.0:8080"
+  log:
+    enable: true
+  api:
+    path: "v1"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+  max_mem_limit: 102400
