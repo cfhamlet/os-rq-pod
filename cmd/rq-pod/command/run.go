@@ -1,8 +1,6 @@
 package command
 
 import (
-	"net/http"
-
 	"github.com/cfhamlet/os-rq-pod/app/router"
 	"github.com/cfhamlet/os-rq-pod/core"
 	defaultConfig "github.com/cfhamlet/os-rq-pod/internal/config"
@@ -33,9 +31,6 @@ func run(conf *viper.Viper) {
 	newEngine := func(*core.Pod) *gin.Engine {
 		return ginserv.NewEngine(conf)
 	}
-	newServer := func(engine *gin.Engine) *http.Server {
-		return ginserv.NewServer(conf, engine)
-	}
 
 	app := fx.New(
 		fx.Provide(
@@ -43,7 +38,7 @@ func run(conf *viper.Viper) {
 			utils.NewRedisClient,
 			core.NewPod,
 			newEngine,
-			newServer,
+			ginserv.NewServer,
 			ginserv.NewAPIGroup,
 			runner.HTTPServerLifecycle,
 		),
