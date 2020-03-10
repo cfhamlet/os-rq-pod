@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cfhamlet/os-rq-pod/core"
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
+	core "github.com/cfhamlet/os-rq-pod/pod"
 	"github.com/gin-gonic/gin"
 )
 
