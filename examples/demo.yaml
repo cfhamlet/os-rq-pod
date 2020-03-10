@@ -4,7 +4,7 @@ log:
   level: "info"
 
 http:
-  addr: "0.0.0.0:6780"
+  addr: "0.0.0.0:6789"
   log:
     enable: true
   api:
