@@ -1,4 +1,4 @@
-package core
+package pod
 
 // QueueOperation TODO
 type QueueOperation interface {

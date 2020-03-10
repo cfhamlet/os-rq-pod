@@ -2,7 +2,6 @@ package command
 
 import (
 	"github.com/cfhamlet/os-rq-pod/app/router"
-	"github.com/cfhamlet/os-rq-pod/core"
 	defaultConfig "github.com/cfhamlet/os-rq-pod/internal/config"
 	"github.com/cfhamlet/os-rq-pod/pkg/command"
 	"github.com/cfhamlet/os-rq-pod/pkg/config"
@@ -10,6 +9,7 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/runner"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
+	core "github.com/cfhamlet/os-rq-pod/pod"
 	"github.com/gin-gonic/gin"
 
 	"github.com/spf13/viper"

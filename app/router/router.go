@@ -3,8 +3,8 @@ package router
 import (
 	"github.com/cfhamlet/os-rq-pod/app/controller"
 
-	"github.com/cfhamlet/os-rq-pod/core"
 	"github.com/cfhamlet/os-rq-pod/pkg/ginserv"
+	core "github.com/cfhamlet/os-rq-pod/pod"
 )
 
 // InitAPIRouter TODO

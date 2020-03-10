@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/cfhamlet/os-rq-pod/core"
+	core "github.com/cfhamlet/os-rq-pod/pod"
 	"github.com/gin-gonic/gin"
 )
 
