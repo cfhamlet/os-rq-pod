@@ -8,6 +8,7 @@ import (
 
 	"github.com/DeanThompson/ginpprof"
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
+	limits "github.com/gin-contrib/size"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 )
@@ -41,6 +42,10 @@ func LoadGlobalMiddlewares(conf *viper.Viper, engine *gin.Engine) {
 	engine.Use(gin.Recovery())
 	if conf.GetBool("http.log.enable") {
 		UseLog(engine)
+	}
+	if conf.IsSet("limit.http.size") {
+		limit := conf.GetInt64("limit.http.sizse")
+		engine.Use(limits.RequestSizeLimiter(limit))
 	}
 }
 
