@@ -62,11 +62,11 @@ func QueueIDFromRedisKey(key string) (qid QueueID, err error) {
 	if !strings.HasPrefix(key, RedisQueueKeyPrefix) {
 		err = fmt.Errorf(`invalid redis key %s, not starts with "%s"`, key, RedisQueueKeyPrefix)
 	} else {
-		parts := strings.Split(key, ":")
-		if len(parts) != 5 {
+		parts := strings.Split(key[len(RedisQueueKeyPrefix):], ":")
+		if len(parts) != 3 {
 			err = fmt.Errorf(`invalid redis key %s, not "%shost:port:scheme"`, key, RedisQueueKeyPrefix)
 		} else {
-			qid = QueueID{parts[2], parts[3], parts[4]}
+			qid = QueueID{parts[0], parts[1], parts[2]}
 		}
 	}
 

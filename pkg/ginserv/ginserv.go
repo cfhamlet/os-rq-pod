@@ -44,7 +44,7 @@ func LoadGlobalMiddlewares(conf *viper.Viper, engine *gin.Engine) {
 		UseLog(engine)
 	}
 	if conf.IsSet("limit.http.size") {
-		limit := conf.GetInt64("limit.http.sizse")
+		limit := conf.GetInt64("limit.http.size")
 		engine.Use(limits.RequestSizeLimiter(limit))
 	}
 }
