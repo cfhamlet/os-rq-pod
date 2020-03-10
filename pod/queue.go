@@ -52,9 +52,6 @@ type Queue struct {
 	dequeuing  int64
 }
 
-// RedisQueueKeyPrefix TODO
-const RedisQueueKeyPrefix = "q:r:"
-
 // RedisKeyFromQueueID TODO
 func RedisKeyFromQueueID(qid QueueID) string {
 	return RedisQueueKeyPrefix + qid.String()
