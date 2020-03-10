@@ -33,7 +33,7 @@ func (wp *HandlerWrapper) Wrap(f CtrlFunc) gin.HandlerFunc {
 				code = http.StatusBadRequest
 			case core.QueueNotExistError:
 				code = http.StatusNotFound
-			case core.UnavailableError:
+			case core.UnavailableError, core.ExceedLimitError:
 				code = http.StatusNotAcceptable
 			default:
 				code = http.StatusInternalServerError

@@ -87,6 +87,7 @@ type Pod struct {
 	status   Status
 	stLocker *sync.RWMutex
 	qLocker  *sync.RWMutex
+	limiter  *Limiter
 }
 
 // NewPod creates RQ object
@@ -99,11 +100,14 @@ func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod, err error) {
 
 	pod = &Pod{
 		client, proc, conf, nil, stats, Preparing,
-		&sync.RWMutex{}, &sync.RWMutex{},
+		&sync.RWMutex{}, &sync.RWMutex{}, nil,
 	}
 
 	queueBox := NewQueueBox(pod)
 	pod.queueBox = queueBox
+
+	limiter := NewLimiter(pod)
+	pod.limiter = limiter
 	return
 }
 
@@ -236,26 +240,31 @@ func (pod *Pod) AddRequest(rawReq *request.RawRequest) (result Result, err error
 
 	var req *request.Request
 	req, err = request.NewRequest(rawReq)
+	if err != nil {
+		return
+	}
+	err = pod.limiter.AllowedNewRequest(req)
+	if err != nil {
+		return
+	}
+	qid := QueueIDFromRequest(req)
+	pod.qLocker.RLock()
+	queue, ok := pod.queueBox.GetQueue(qid)
+	if !ok {
+		queue, err = pod.queueBox.AddQueue(qid)
+	}
 	if err == nil {
-		qid := QueueIDFromRequest(req)
-		pod.qLocker.RLock()
-		queue, ok := pod.queueBox.GetQueue(qid)
-		if !ok {
-			queue, err = pod.queueBox.AddQueue(qid)
-		}
-		if err == nil {
-			result, err = queue.Put(req)
-			pod.qLocker.RUnlock()
-			if err != nil {
-				switch err.(type) {
-				case UnavailableError:
-				default:
-					_ = pod.dropIdleQueue(qid)
-				}
+		result, err = queue.Put(req)
+		pod.qLocker.RUnlock()
+		if err != nil {
+			switch err.(type) {
+			case UnavailableError:
+			default:
+				_ = pod.dropIdleQueue(qid)
 			}
-		} else {
-			pod.qLocker.RUnlock()
 		}
+	} else {
+		pod.qLocker.RUnlock()
 	}
 
 	return

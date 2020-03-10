@@ -185,7 +185,7 @@ func (queue *Queue) Put(request *request.Request) (Result, error) {
 	if request.RawReq.Meta == nil {
 		request.RawReq.Meta = make(map[string]interface{})
 	}
-	request.RawReq.Meta["pod_in"] = time.Now().Unix()
+	request.RawReq.Meta["_pod_in_"] = time.Now().Unix()
 	j, err := request.JSON()
 	if err != nil {
 		return nil, err

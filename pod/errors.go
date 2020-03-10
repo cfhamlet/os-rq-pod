@@ -21,3 +21,10 @@ type UnavailableError string
 func (e UnavailableError) Error() string {
 	return fmt.Sprintf("unavailable %s", string(e))
 }
+
+// ExceedLimitError TODO
+type ExceedLimitError string
+
+func (e ExceedLimitError) Error() string {
+	return fmt.Sprintf("exceed limit %s", string(e))
+}
