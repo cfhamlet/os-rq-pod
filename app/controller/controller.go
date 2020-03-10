@@ -36,13 +36,13 @@ func QueueIDFromQuery(q string) (qid core.QueueID, err error) {
 }
 
 // AddRequest TODO
-func AddRequest(c *gin.Context, p *core.Pod) (result core.Result, err error) {
+func AddRequest(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 	var req *request.RawRequest = &request.RawRequest{}
 
 	if err = c.ShouldBindJSON(req); err != nil {
 		err = InvalidBody(fmt.Sprintf("%s", err))
 	} else {
-		result, err = p.AddRequest(req)
+		result, err = pod.AddRequest(req)
 	}
 
 	c.Header("Access-Control-Allow-Origin", "*")

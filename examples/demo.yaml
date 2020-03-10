@@ -8,7 +8,7 @@ http:
   log:
     enable: true
   api:
-    path: "v1"
+    path: "api"
 
 redis:
   addr: "localhost:6379"
