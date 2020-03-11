@@ -25,6 +25,7 @@ const (
 	Paused    Status = "paused"
 	Preparing Status = "preparing"
 	Stopping  Status = "stopping"
+	Stopped   Status = "stopped"
 )
 
 // Result TODO
@@ -111,7 +112,7 @@ func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod, err error) {
 	return
 }
 
-func loadQueues(pod *Pod, keys []string) (err error) {
+func (pod *Pod) loadQueues(keys []string) (err error) {
 	for _, key := range keys {
 		qid, e := QueueIDFromRedisKey(key)
 		if e != nil {
@@ -126,8 +127,31 @@ func loadQueues(pod *Pod, keys []string) (err error) {
 	return
 }
 
+// OnStart TODO
+func (pod *Pod) OnStart() (err error) {
+	err = pod.LoadQueues()
+	if err != nil {
+		return
+	}
+	_, err = pod.setStatus(Working)
+	return
+}
+
+// OnStop TODO
+func (pod *Pod) OnStop() (err error) {
+	_, err = pod.setStatus(Stopping)
+	if err != nil {
+		return
+	}
+	_, err = pod.setStatus(Stopped)
+	if err != nil {
+		return
+	}
+	return
+}
+
 // LoadQueues TODO
-func LoadQueues(pod *Pod) (err error) {
+func (pod *Pod) LoadQueues() (err error) {
 
 	log.Logger.Debug("load queues start")
 	var cursor uint64
@@ -135,7 +159,7 @@ func LoadQueues(pod *Pod) (err error) {
 		var keys []string
 		keys, cursor, err = pod.Client.Scan(cursor, RedisQueueKeyPrefix+"*", 2000).Result()
 		if err == nil {
-			err = loadQueues(pod, keys)
+			err = pod.loadQueues(keys)
 		}
 		if err != nil {
 			return
@@ -149,7 +173,6 @@ func LoadQueues(pod *Pod) (err error) {
 	log.Logger.Debugf("load queues finish, queues %d, requests %d",
 		pod.queueBox.QueueNum(QueueNilStatus), pod.stats.RequestNum())
 
-	_, err = pod.setStatus(Working)
 	return
 }
 
