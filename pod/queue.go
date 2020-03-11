@@ -23,6 +23,9 @@ const (
 	QueuePaused    QueueStatus = "paused"
 )
 
+// QueueStatusSlice TODO
+var QueueStatusSlice = []QueueStatus{QueueNilStatus, QueueWorking, QueuePaused}
+
 // QueueID TODO
 type QueueID struct {
 	Host   string `json:"host"`

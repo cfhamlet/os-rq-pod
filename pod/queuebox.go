@@ -17,19 +17,27 @@ func NewIdxQueue(pod *Pod, qid QueueID, status QueueStatus, idx int) *IdxQueue {
 	return &IdxQueue{idx, NewQueue(pod, qid, status)}
 }
 
+// IdxQueueMap TODO
+type IdxQueueMap map[QueueID]*IdxQueue
+
+// StatusQueueIDSliceMap TODO
+type StatusQueueIDSliceMap map[QueueStatus][]QueueID
+
 // QueueBox TODO
 type QueueBox struct {
 	pod      *Pod
-	queues   map[QueueID]*IdxQueue
-	queueIDs map[QueueStatus][]QueueID
+	queues   IdxQueueMap
+	queueIDs StatusQueueIDSliceMap
 	locker   *sync.RWMutex
 }
 
 // NewQueueBox TODO
 func NewQueueBox(pod *Pod) *QueueBox {
-	queues := make(map[QueueID]*IdxQueue)
-	queueIDs := map[QueueStatus][]QueueID{QueuePaused: []QueueID{}, QueueWorking: []QueueID{}}
-	return &QueueBox{pod, queues, queueIDs, &sync.RWMutex{}}
+	queueIDs := StatusQueueIDSliceMap{}
+	for _, status := range QueueStatusSlice {
+		queueIDs[status] = []QueueID{}
+	}
+	return &QueueBox{pod, IdxQueueMap{}, queueIDs, &sync.RWMutex{}}
 }
 
 // AddQueue TODO
