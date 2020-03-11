@@ -425,7 +425,6 @@ func (pod *Pod) setStatus(status Status) (Result, error) {
 
 	pod.status = status
 	return pod.metaInfo(), nil
-
 }
 
 // ViewQueue TODO
