@@ -24,7 +24,11 @@ const (
 )
 
 // QueueStatusSlice TODO
-var QueueStatusSlice = []QueueStatus{QueueNilStatus, QueueWorking, QueuePaused}
+var QueueStatusSlice = []QueueStatus{
+	QueueNilStatus,
+	QueueWorking,
+	QueuePaused,
+}
 
 // QueueID TODO
 type QueueID struct {
