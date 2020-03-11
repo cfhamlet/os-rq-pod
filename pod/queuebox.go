@@ -159,7 +159,7 @@ func (box *QueueBox) Info() (result Result) {
 }
 
 // OrderedQueues TODO
-func (box *QueueBox) OrderedQueues(k int64, start int64, status QueueStatus) Result {
+func (box *QueueBox) OrderedQueues(k int, start int, status QueueStatus) Result {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
 	queueIDs := box.queueIDs[status]
@@ -171,6 +171,7 @@ func (box *QueueBox) OrderedQueues(k int64, start int64, status QueueStatus) Res
 	if l <= 0 || k <= 0 {
 		out = []Result{}
 	} else {
+		out = make([]Result, 0, k)
 		for _, qid := range queueIDs[start : start+k] {
 			queue, ok := box.queues[qid]
 			if ok {
@@ -189,25 +190,30 @@ func (box *QueueBox) OrderedQueues(k int64, start int64, status QueueStatus) Res
 }
 
 // RandomQueues TODO
-func (box *QueueBox) RandomQueues(k int64, status QueueStatus) Result {
+func (box *QueueBox) RandomQueues(k int, status QueueStatus) Result {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
 	queueIDs := box.queueIDs[status]
-	l := int64(len(queueIDs))
-	out := []Result{}
+	l := len(queueIDs)
+	var out []Result
 	if l <= 0 || k <= 0 {
+		out = []Result{}
 	} else {
 		if k > l {
 			k = l
 		}
+		out = make([]Result, 0, k)
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		s := r.Perm(int(k)) // TODO not safe
+		s := r.Perm(l)
 		for _, i := range s {
 			qid := queueIDs[i]
 			queue, ok := box.queues[qid]
 			if ok {
 				r := Result{"qid": qid, "qsize": queue.QueueSize()}
 				out = append(out, r)
+				if len(out) >= k {
+					break
+				}
 			}
 		}
 	}

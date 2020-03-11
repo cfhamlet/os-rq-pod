@@ -443,11 +443,11 @@ func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, e
 }
 
 // OrderedQueues TODO
-func (pod *Pod) OrderedQueues(k int64, start int64, status QueueStatus) Result {
+func (pod *Pod) OrderedQueues(k int, start int, status QueueStatus) Result {
 	return pod.queueBox.OrderedQueues(k, start, status)
 }
 
 // RandomQueues TODO
-func (pod *Pod) RandomQueues(k int64, status QueueStatus) Result {
+func (pod *Pod) RandomQueues(k int, status QueueStatus) Result {
 	return pod.queueBox.RandomQueues(k, status)
 }

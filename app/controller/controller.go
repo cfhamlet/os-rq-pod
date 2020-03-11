@@ -193,14 +193,14 @@ func Queues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 	}
 
 	if random {
-		result = pod.RandomQueues(k, status)
+		result = pod.RandomQueues(int(k), status)
 	} else {
 		qs := c.DefaultQuery("s", "0")
 		s, e := strconv.ParseInt(qs, 10, 64)
 		if e != nil {
 			err = InvalidQuery(fmt.Sprintf("s=%s %s", qs, err))
 		}
-		result = pod.OrderedQueues(k, s, status)
+		result = pod.OrderedQueues(int(k), int(s), status)
 	}
 	return
 }
