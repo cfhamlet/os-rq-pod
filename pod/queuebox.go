@@ -37,7 +37,12 @@ func NewQueueBox(pod *Pod) *QueueBox {
 	for _, status := range QueueStatusSlice {
 		queueIDs[status] = []QueueID{}
 	}
-	return &QueueBox{pod, IdxQueueMap{}, queueIDs, &sync.RWMutex{}}
+	return &QueueBox{
+		pod,
+		IdxQueueMap{},
+		queueIDs,
+		&sync.RWMutex{},
+	}
 }
 
 // AddQueue TODO
