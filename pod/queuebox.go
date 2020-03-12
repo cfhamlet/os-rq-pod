@@ -25,22 +25,22 @@ type StatusQueueIDSliceMap map[QueueStatus][]QueueID
 
 // QueueBox TODO
 type QueueBox struct {
-	pod      *Pod
-	queues   IdxQueueMap
-	queueIDs StatusQueueIDSliceMap
-	locker   *sync.RWMutex
+	pod               *Pod
+	idxQueueMap       IdxQueueMap
+	statusQueueIDsMap StatusQueueIDSliceMap
+	locker            *sync.RWMutex
 }
 
 // NewQueueBox TODO
 func NewQueueBox(pod *Pod) *QueueBox {
-	queueIDs := StatusQueueIDSliceMap{}
-	for _, status := range QueueStatusSlice {
-		queueIDs[status] = []QueueID{}
+	statusQueueIDsMap := StatusQueueIDSliceMap{}
+	for _, status := range QueueStatusList {
+		statusQueueIDsMap[status] = []QueueID{}
 	}
 	return &QueueBox{
 		pod,
 		IdxQueueMap{},
-		queueIDs,
+		statusQueueIDsMap,
 		&sync.RWMutex{},
 	}
 }
@@ -50,20 +50,20 @@ func (box *QueueBox) AddQueue(qid QueueID) (queue *IdxQueue, err error) {
 	box.locker.Lock()
 	defer box.locker.Unlock()
 
-	queue, ok := box.queues[qid]
+	queue, ok := box.idxQueueMap[qid]
 	if ok {
 		return
 	}
 
-	queueIDs := box.queueIDs[QueueWorking]
+	queueIDs := box.statusQueueIDsMap[QueueWorking]
 	queue = NewIdxQueue(box.pod, qid, QueueNilStatus, len(queueIDs))
 	_, err = queue.SetStatus(QueueWorking)
 	if err != nil {
 		queue = nil
 		return
 	}
-	box.queueIDs[QueueWorking] = append(queueIDs, qid)
-	box.queues[qid] = queue
+	box.statusQueueIDsMap[QueueWorking] = append(queueIDs, qid)
+	box.idxQueueMap[qid] = queue
 	return
 }
 
@@ -72,21 +72,21 @@ func (box *QueueBox) RemoveQueue(qid QueueID) error {
 	box.locker.Lock()
 	defer box.locker.Unlock()
 
-	queue, ok := box.queues[qid]
+	queue, ok := box.idxQueueMap[qid]
 	if !ok {
 		return QueueNotExist
 	}
 
 	status := queue.Status()
-	queueIDs := box.queueIDs[status]
+	queueIDs := box.statusQueueIDsMap[status]
 	lastIdx := len(queueIDs) - 1
 	lastQueueID := queueIDs[lastIdx]
-	lastQueue := box.queues[lastQueueID]
+	lastQueue := box.idxQueueMap[lastQueueID]
 	lastQueue.Idx = queue.Idx
 	queueIDs[queue.Idx] = lastQueueID
 	queueIDs[lastIdx] = QueueID{}
-	box.queueIDs[status] = queueIDs[:lastIdx]
-	delete(box.queues, qid)
+	box.statusQueueIDsMap[status] = queueIDs[:lastIdx]
+	delete(box.idxQueueMap, qid)
 	return nil
 }
 
@@ -95,7 +95,7 @@ func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (result 
 	box.locker.Lock()
 	defer box.locker.Unlock()
 
-	queue, ok := box.queues[qid]
+	queue, ok := box.idxQueueMap[qid]
 
 	if !ok {
 		err = QueueNotExist
@@ -114,18 +114,18 @@ func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (result 
 		return
 	}
 
-	queueIDs := box.queueIDs[oldStatus]
+	queueIDs := box.statusQueueIDsMap[oldStatus]
 	lastIdx := len(queueIDs) - 1
 	lastQueueID := queueIDs[lastIdx]
-	lastQueue := box.queues[lastQueueID]
+	lastQueue := box.idxQueueMap[lastQueueID]
 	lastQueue.Idx = queue.Idx
 	queueIDs[queue.Idx] = lastQueueID
 	queueIDs[lastIdx] = QueueID{}
-	box.queueIDs[oldStatus] = queueIDs[:lastIdx]
+	box.statusQueueIDsMap[oldStatus] = queueIDs[:lastIdx]
 
-	queueIDs = box.queueIDs[status]
+	queueIDs = box.statusQueueIDsMap[status]
 	queue.Idx = len(queueIDs)
-	box.queueIDs[status] = append(queueIDs, qid)
+	box.statusQueueIDsMap[status] = append(queueIDs, qid)
 	return
 }
 
@@ -133,7 +133,7 @@ func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (result 
 func (box *QueueBox) GetQueue(qid QueueID) (*IdxQueue, bool) {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
-	queue, ok := box.queues[qid]
+	queue, ok := box.idxQueueMap[qid]
 	return queue, ok
 }
 
@@ -142,9 +142,9 @@ func (box *QueueBox) QueueNum(status QueueStatus) int {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
 	if status == QueueNilStatus {
-		return len(box.queues)
+		return len(box.idxQueueMap)
 	}
-	return len(box.queueIDs[status])
+	return len(box.statusQueueIDsMap[status])
 }
 
 // Info TODO
@@ -152,7 +152,7 @@ func (box *QueueBox) Info() (result Result) {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
 	result = Result{}
-	for k, v := range box.queueIDs {
+	for k, v := range box.statusQueueIDsMap {
 		result[string(k)] = len(v)
 	}
 	return
@@ -162,7 +162,7 @@ func (box *QueueBox) Info() (result Result) {
 func (box *QueueBox) OrderedQueues(k int, start int, status QueueStatus) Result {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
-	queueIDs := box.queueIDs[status]
+	queueIDs := box.statusQueueIDsMap[status]
 	l := len(queueIDs)
 	if start < 0 {
 		start = 0
@@ -173,7 +173,7 @@ func (box *QueueBox) OrderedQueues(k int, start int, status QueueStatus) Result 
 	} else {
 		out = make([]Result, 0, k)
 		for _, qid := range queueIDs[start : start+k] {
-			queue, ok := box.queues[qid]
+			queue, ok := box.idxQueueMap[qid]
 			if ok {
 				r := Result{"qid": qid, "qsize": queue.QueueSize()}
 				out = append(out, r)
@@ -193,7 +193,7 @@ func (box *QueueBox) OrderedQueues(k int, start int, status QueueStatus) Result 
 func (box *QueueBox) RandomQueues(k int, status QueueStatus) Result {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
-	queueIDs := box.queueIDs[status]
+	queueIDs := box.statusQueueIDsMap[status]
 	l := len(queueIDs)
 	var out []Result
 	if l <= 0 || k <= 0 {
@@ -207,7 +207,7 @@ func (box *QueueBox) RandomQueues(k int, status QueueStatus) Result {
 		s := r.Perm(l)
 		for _, i := range s {
 			qid := queueIDs[i]
-			queue, ok := box.queues[qid]
+			queue, ok := box.idxQueueMap[qid]
 			if ok {
 				r := Result{"qid": qid, "qsize": queue.QueueSize()}
 				out = append(out, r)

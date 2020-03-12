@@ -23,8 +23,8 @@ const (
 	QueuePaused    QueueStatus = "paused"
 )
 
-// QueueStatusSlice TODO
-var QueueStatusSlice = []QueueStatus{
+// QueueStatusList TODO
+var QueueStatusList = []QueueStatus{
 	QueueNilStatus,
 	QueueWorking,
 	QueuePaused,
