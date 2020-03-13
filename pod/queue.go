@@ -93,6 +93,7 @@ func CreateQueueID(host, port, scheme string) QueueID {
 			port = ""
 		}
 	}
+	host = utils.Reverse(host)
 	return QueueID{Host: host, Port: port, Scheme: scheme}
 }
 
