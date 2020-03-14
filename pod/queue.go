@@ -11,6 +11,7 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/go-redis/redis/v7"
+	"github.com/segmentio/fasthash/fnv1a"
 )
 
 // QueueStatus type
@@ -18,10 +19,17 @@ type QueueStatus string
 
 // QueueStatus enum
 const (
-	QueueNilStatus QueueStatus = "nil"
+	QueueUndefined QueueStatus = "undefined"
 	QueueWorking   QueueStatus = "working"
 	QueuePaused    QueueStatus = "paused"
 )
+
+// QueueStatusList TODO
+var QueueStatusList = []QueueStatus{
+	QueueUndefined,
+	QueueWorking,
+	QueuePaused,
+}
 
 // QueueID TODO
 type QueueID struct {
@@ -32,6 +40,11 @@ type QueueID struct {
 
 func (qid QueueID) String() string {
 	return strings.Join([]string{qid.Host, qid.Port, qid.Scheme}, ":")
+}
+
+// ItemID TODO
+func (qid QueueID) ItemID() uint64 {
+	return fnv1a.HashString64(qid.String())
 }
 
 // MarshalJSON TODO
@@ -52,9 +65,6 @@ type Queue struct {
 	dequeuing  int64
 }
 
-// RedisQueueKeyPrefix TODO
-const RedisQueueKeyPrefix = "q:r:"
-
 // RedisKeyFromQueueID TODO
 func RedisKeyFromQueueID(qid QueueID) string {
 	return RedisQueueKeyPrefix + qid.String()
@@ -65,11 +75,11 @@ func QueueIDFromRedisKey(key string) (qid QueueID, err error) {
 	if !strings.HasPrefix(key, RedisQueueKeyPrefix) {
 		err = fmt.Errorf(`invalid redis key %s, not starts with "%s"`, key, RedisQueueKeyPrefix)
 	} else {
-		parts := strings.Split(key, ":")
-		if len(parts) != 5 {
+		parts := strings.Split(key[len(RedisQueueKeyPrefix):], ":")
+		if len(parts) != 3 {
 			err = fmt.Errorf(`invalid redis key %s, not "%shost:port:scheme"`, key, RedisQueueKeyPrefix)
 		} else {
-			qid = QueueID{parts[2], parts[3], parts[4]}
+			qid = QueueID{parts[0], parts[1], parts[2]}
 		}
 	}
 
@@ -188,7 +198,7 @@ func (queue *Queue) Put(request *request.Request) (Result, error) {
 	if request.RawReq.Meta == nil {
 		request.RawReq.Meta = make(map[string]interface{})
 	}
-	request.RawReq.Meta["pod_in"] = time.Now().Unix()
+	request.RawReq.Meta["_pod_in_"] = time.Now().Unix()
 	j, err := request.JSON()
 	if err != nil {
 		return nil, err

@@ -1,56 +1,51 @@
 package pod
 
 import (
-	"math/rand"
 	"sync"
-	"time"
+
+	"github.com/cfhamlet/os-rq-pod/pkg/slicemap"
 )
-
-// IdxQueue TODO
-type IdxQueue struct {
-	Idx int
-	*Queue
-}
-
-// NewIdxQueue TODO
-func NewIdxQueue(pod *Pod, qid QueueID, status QueueStatus, idx int) *IdxQueue {
-	return &IdxQueue{idx, NewQueue(pod, qid, status)}
-}
 
 // QueueBox TODO
 type QueueBox struct {
-	pod      *Pod
-	queues   map[QueueID]*IdxQueue
-	queueIDs map[QueueStatus][]QueueID
-	locker   *sync.RWMutex
+	pod            *Pod
+	queueMap       map[QueueID]*Queue
+	statusQueueIDs map[QueueStatus]*slicemap.Map
+	locker         *sync.RWMutex
 }
 
 // NewQueueBox TODO
 func NewQueueBox(pod *Pod) *QueueBox {
-	queues := make(map[QueueID]*IdxQueue)
-	queueIDs := map[QueueStatus][]QueueID{QueuePaused: []QueueID{}, QueueWorking: []QueueID{}}
-	return &QueueBox{pod, queues, queueIDs, &sync.RWMutex{}}
+	statusQueueIDs := map[QueueStatus]*slicemap.Map{}
+	for _, status := range QueueStatusList {
+		statusQueueIDs[status] = slicemap.New()
+	}
+	return &QueueBox{
+		pod,
+		map[QueueID]*Queue{},
+		statusQueueIDs,
+		&sync.RWMutex{},
+	}
 }
 
 // AddQueue TODO
-func (box *QueueBox) AddQueue(qid QueueID) (queue *IdxQueue, err error) {
+func (box *QueueBox) AddQueue(qid QueueID) (queue *Queue, err error) {
 	box.locker.Lock()
 	defer box.locker.Unlock()
 
-	queue, ok := box.queues[qid]
+	queue, ok := box.queueMap[qid]
 	if ok {
 		return
 	}
 
-	queueIDs := box.queueIDs[QueueWorking]
-	queue = NewIdxQueue(box.pod, qid, QueueNilStatus, len(queueIDs))
+	queue = NewQueue(box.pod, qid, QueueUndefined)
 	_, err = queue.SetStatus(QueueWorking)
 	if err != nil {
 		queue = nil
 		return
 	}
-	box.queueIDs[QueueWorking] = append(queueIDs, qid)
-	box.queues[qid] = queue
+	box.queueMap[qid] = queue
+	box.statusQueueIDs[QueueWorking].Add(qid)
 	return
 }
 
@@ -59,21 +54,14 @@ func (box *QueueBox) RemoveQueue(qid QueueID) error {
 	box.locker.Lock()
 	defer box.locker.Unlock()
 
-	queue, ok := box.queues[qid]
+	queue, ok := box.queueMap[qid]
 	if !ok {
 		return QueueNotExist
 	}
 
 	status := queue.Status()
-	queueIDs := box.queueIDs[status]
-	lastIdx := len(queueIDs) - 1
-	lastQueueID := queueIDs[lastIdx]
-	lastQueue := box.queues[lastQueueID]
-	lastQueue.Idx = queue.Idx
-	queueIDs[queue.Idx] = lastQueueID
-	queueIDs[lastIdx] = QueueID{}
-	box.queueIDs[status] = queueIDs[:lastIdx]
-	delete(box.queues, qid)
+	delete(box.queueMap, qid)
+	box.statusQueueIDs[status].Delete(qid)
 	return nil
 }
 
@@ -82,7 +70,7 @@ func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (result 
 	box.locker.Lock()
 	defer box.locker.Unlock()
 
-	queue, ok := box.queues[qid]
+	queue, ok := box.queueMap[qid]
 
 	if !ok {
 		err = QueueNotExist
@@ -100,27 +88,16 @@ func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (result 
 	if err != nil {
 		return
 	}
-
-	queueIDs := box.queueIDs[oldStatus]
-	lastIdx := len(queueIDs) - 1
-	lastQueueID := queueIDs[lastIdx]
-	lastQueue := box.queues[lastQueueID]
-	lastQueue.Idx = queue.Idx
-	queueIDs[queue.Idx] = lastQueueID
-	queueIDs[lastIdx] = QueueID{}
-	box.queueIDs[oldStatus] = queueIDs[:lastIdx]
-
-	queueIDs = box.queueIDs[status]
-	queue.Idx = len(queueIDs)
-	box.queueIDs[status] = append(queueIDs, qid)
+	box.statusQueueIDs[oldStatus].Delete(qid)
+	box.statusQueueIDs[status].Add(qid)
 	return
 }
 
 // GetQueue TODO
-func (box *QueueBox) GetQueue(qid QueueID) (*IdxQueue, bool) {
+func (box *QueueBox) GetQueue(qid QueueID) (*Queue, bool) {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
-	queue, ok := box.queues[qid]
+	queue, ok := box.queueMap[qid]
 	return queue, ok
 }
 
@@ -128,10 +105,10 @@ func (box *QueueBox) GetQueue(qid QueueID) (*IdxQueue, bool) {
 func (box *QueueBox) QueueNum(status QueueStatus) int {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
-	if status == QueueNilStatus {
-		return len(box.queues)
+	if status == QueueUndefined {
+		return len(box.queueMap)
 	}
-	return len(box.queueIDs[status])
+	return box.statusQueueIDs[status].Size()
 }
 
 // Info TODO
@@ -139,32 +116,42 @@ func (box *QueueBox) Info() (result Result) {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
 	result = Result{}
-	for k, v := range box.queueIDs {
-		result[string(k)] = len(v)
+	for k, v := range box.statusQueueIDs {
+		result[string(k)] = v.Size()
 	}
 	return
 }
 
-// OrderedQueues TODO
-func (box *QueueBox) OrderedQueues(k int64, start int64, status QueueStatus) Result {
-	box.locker.RLock()
-	defer box.locker.RUnlock()
-	queueIDs := box.queueIDs[status]
-	l := len(queueIDs)
-	if start < 0 {
-		start = 0
-	}
-	var out []Result
-	if l <= 0 || k <= 0 {
-		out = []Result{}
-	} else {
-		for _, qid := range queueIDs[start : start+k] {
-			queue, ok := box.queues[qid]
+func (box *QueueBox) fillQueues(iter slicemap.Iterator) []Result {
+	out := []Result{}
+	iter.Iter(
+		func(item slicemap.Item) {
+			qid := item.(QueueID)
+			queue, ok := box.queueMap[qid]
 			if ok {
 				r := Result{"qid": qid, "qsize": queue.QueueSize()}
 				out = append(out, r)
 			}
+		},
+	)
+	return out
+}
+
+// OrderedQueues TODO
+func (box *QueueBox) OrderedQueues(k int, start int, status QueueStatus) Result {
+	box.locker.RLock()
+	defer box.locker.RUnlock()
+	queueIDs := box.statusQueueIDs[status]
+	l := queueIDs.Size()
+	var out []Result
+	if l <= 0 || k <= 0 {
+		out = []Result{}
+	} else {
+		if start < 0 {
+			start = 0
 		}
+		iterator := slicemap.NewSubIter(queueIDs, start, k)
+		out = box.fillQueues(iterator)
 	}
 	return Result{
 		"k":      k,
@@ -176,27 +163,17 @@ func (box *QueueBox) OrderedQueues(k int64, start int64, status QueueStatus) Res
 }
 
 // RandomQueues TODO
-func (box *QueueBox) RandomQueues(k int64, status QueueStatus) Result {
+func (box *QueueBox) RandomQueues(k int, status QueueStatus) Result {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
-	queueIDs := box.queueIDs[status]
-	l := int64(len(queueIDs))
-	out := []Result{}
+	queueIDs := box.statusQueueIDs[status]
+	l := queueIDs.Size()
+	var out []Result
 	if l <= 0 || k <= 0 {
+		out = []Result{}
 	} else {
-		if k > l {
-			k = l
-		}
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		s := r.Perm(int(k)) // TODO not safe
-		for _, i := range s {
-			qid := queueIDs[i]
-			queue, ok := box.queues[qid]
-			if ok {
-				r := Result{"qid": qid, "qsize": queue.QueueSize()}
-				out = append(out, r)
-			}
-		}
+		iterator := slicemap.NewRandomKIter(queueIDs, k)
+		out = box.fillQueues(iterator)
 	}
 	return Result{
 		"k":      k,

@@ -1,6 +1,8 @@
 package command
 
 import (
+	"context"
+
 	"github.com/cfhamlet/os-rq-pod/app/router"
 	defaultConfig "github.com/cfhamlet/os-rq-pod/internal/config"
 	"github.com/cfhamlet/os-rq-pod/pkg/command"
@@ -11,6 +13,7 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	core "github.com/cfhamlet/os-rq-pod/pod"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v7"
 
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
@@ -27,6 +30,22 @@ func run(conf *viper.Viper) {
 		err := config.LoadConfig(conf, defaultConfig.EnvPrefix, defaultConfig.DefaultConfig)
 		return conf, err
 	}
+	newPod := func(lc fx.Lifecycle, conf *viper.Viper, client *redis.Client) (pod *core.Pod, err error) {
+		pod, err = core.NewPod(conf, client)
+		if err != nil {
+			return
+		}
+		lc.Append(
+			fx.Hook{
+				OnStart: func(context.Context) error {
+					return pod.OnStart()
+				},
+				OnStop: func(ctx context.Context) error {
+					return pod.OnStop()
+				},
+			})
+		return
+	}
 
 	newEngine := func(*core.Pod) *gin.Engine {
 		return ginserv.NewEngine(conf)
@@ -36,7 +55,7 @@ func run(conf *viper.Viper) {
 		fx.Provide(
 			loadConfig,
 			utils.NewRedisClient,
-			core.NewPod,
+			newPod,
 			newEngine,
 			ginserv.NewServer,
 			ginserv.NewAPIGroup,
@@ -47,7 +66,6 @@ func run(conf *viper.Viper) {
 			log.ConfigLogging,
 			ginserv.LoadGlobalMiddlewares,
 			router.InitAPIRouter,
-			core.LoadQueues,
 		),
 		fx.Populate(&startFail),
 	)

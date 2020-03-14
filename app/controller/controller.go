@@ -25,7 +25,7 @@ func QueueIDFromQuery(q string) (qid core.QueueID, err error) {
 			qid = core.CreateQueueID(q, "", "http")
 		case 2:
 			qid = core.CreateQueueID(s[0], s[1], "http")
-		case 3:
+		case 3: // QueueID
 			qid = core.CreateQueueID(s[0], s[1], s[2])
 		default:
 			err = InvalidQuery(fmt.Sprintf("%q", q))
@@ -36,13 +36,13 @@ func QueueIDFromQuery(q string) (qid core.QueueID, err error) {
 }
 
 // AddRequest TODO
-func AddRequest(c *gin.Context, p *core.Pod) (result core.Result, err error) {
+func AddRequest(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 	var req *request.RawRequest = &request.RawRequest{}
 
 	if err = c.ShouldBindJSON(req); err != nil {
 		err = InvalidBody(fmt.Sprintf("%s", err))
 	} else {
-		result, err = p.AddRequest(req)
+		result, err = pod.AddRequest(req)
 	}
 
 	c.Header("Access-Control-Allow-Origin", "*")
@@ -193,14 +193,14 @@ func Queues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 	}
 
 	if random {
-		result = pod.RandomQueues(k, status)
+		result = pod.RandomQueues(int(k), status)
 	} else {
 		qs := c.DefaultQuery("s", "0")
 		s, e := strconv.ParseInt(qs, 10, 64)
 		if e != nil {
 			err = InvalidQuery(fmt.Sprintf("s=%s %s", qs, err))
 		}
-		result = pod.OrderedQueues(k, s, status)
+		result = pod.OrderedQueues(int(k), int(s), status)
 	}
 	return
 }

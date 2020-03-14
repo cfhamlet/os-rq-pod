@@ -25,6 +25,7 @@ const (
 	Paused    Status = "paused"
 	Preparing Status = "preparing"
 	Stopping  Status = "stopping"
+	Stopped   Status = "stopped"
 )
 
 // Result TODO
@@ -87,6 +88,7 @@ type Pod struct {
 	status   Status
 	stLocker *sync.RWMutex
 	qLocker  *sync.RWMutex
+	limiter  *Limiter
 }
 
 // NewPod creates RQ object
@@ -99,15 +101,18 @@ func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod, err error) {
 
 	pod = &Pod{
 		client, proc, conf, nil, stats, Preparing,
-		&sync.RWMutex{}, &sync.RWMutex{},
+		&sync.RWMutex{}, &sync.RWMutex{}, nil,
 	}
 
 	queueBox := NewQueueBox(pod)
 	pod.queueBox = queueBox
+
+	limiter := NewLimiter(pod)
+	pod.limiter = limiter
 	return
 }
 
-func loadQueues(pod *Pod, keys []string) (err error) {
+func (pod *Pod) loadQueues(keys []string) (err error) {
 	for _, key := range keys {
 		qid, e := QueueIDFromRedisKey(key)
 		if e != nil {
@@ -122,8 +127,31 @@ func loadQueues(pod *Pod, keys []string) (err error) {
 	return
 }
 
+// OnStart TODO
+func (pod *Pod) OnStart() (err error) {
+	err = pod.LoadQueues()
+	if err != nil {
+		return
+	}
+	_, err = pod.setStatus(Working)
+	return
+}
+
+// OnStop TODO
+func (pod *Pod) OnStop() (err error) {
+	_, err = pod.setStatus(Stopping)
+	if err != nil {
+		return
+	}
+	_, err = pod.setStatus(Stopped)
+	if err != nil {
+		return
+	}
+	return
+}
+
 // LoadQueues TODO
-func LoadQueues(pod *Pod) (err error) {
+func (pod *Pod) LoadQueues() (err error) {
 
 	log.Logger.Debug("load queues start")
 	var cursor uint64
@@ -131,21 +159,20 @@ func LoadQueues(pod *Pod) (err error) {
 		var keys []string
 		keys, cursor, err = pod.Client.Scan(cursor, RedisQueueKeyPrefix+"*", 2000).Result()
 		if err == nil {
-			err = loadQueues(pod, keys)
+			err = pod.loadQueues(keys)
 		}
 		if err != nil {
 			return
 		}
 		log.Logger.Debugf("loading queues, queues %d, requests %d",
-			pod.queueBox.QueueNum(QueueNilStatus), pod.stats.RequestNum())
+			pod.queueBox.QueueNum(QueueUndefined), pod.stats.RequestNum())
 		if cursor == 0 {
 			break
 		}
 	}
 	log.Logger.Debugf("load queues finish, queues %d, requests %d",
-		pod.queueBox.QueueNum(QueueNilStatus), pod.stats.RequestNum())
+		pod.queueBox.QueueNum(QueueUndefined), pod.stats.RequestNum())
 
-	_, err = pod.setStatus(Working)
 	return
 }
 
@@ -236,26 +263,31 @@ func (pod *Pod) AddRequest(rawReq *request.RawRequest) (result Result, err error
 
 	var req *request.Request
 	req, err = request.NewRequest(rawReq)
+	if err != nil {
+		return
+	}
+	err = pod.limiter.AllowedNewRequest(req)
+	if err != nil {
+		return
+	}
+	qid := QueueIDFromRequest(req)
+	pod.qLocker.RLock()
+	queue, ok := pod.queueBox.GetQueue(qid)
+	if !ok {
+		queue, err = pod.queueBox.AddQueue(qid)
+	}
 	if err == nil {
-		qid := QueueIDFromRequest(req)
-		pod.qLocker.RLock()
-		queue, ok := pod.queueBox.GetQueue(qid)
-		if !ok {
-			queue, err = pod.queueBox.AddQueue(qid)
-		}
-		if err == nil {
-			result, err = queue.Put(req)
-			pod.qLocker.RUnlock()
-			if err != nil {
-				switch err.(type) {
-				case UnavailableError:
-				default:
-					_ = pod.dropIdleQueue(qid)
-				}
+		result, err = queue.Put(req)
+		pod.qLocker.RUnlock()
+		if err != nil {
+			switch err.(type) {
+			case UnavailableError:
+			default:
+				_ = pod.dropIdleQueue(qid)
 			}
-		} else {
-			pod.qLocker.RUnlock()
 		}
+	} else {
+		pod.qLocker.RUnlock()
 	}
 
 	return
@@ -393,7 +425,6 @@ func (pod *Pod) setStatus(status Status) (Result, error) {
 
 	pod.status = status
 	return pod.metaInfo(), nil
-
 }
 
 // ViewQueue TODO
@@ -412,11 +443,11 @@ func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, e
 }
 
 // OrderedQueues TODO
-func (pod *Pod) OrderedQueues(k int64, start int64, status QueueStatus) Result {
+func (pod *Pod) OrderedQueues(k int, start int, status QueueStatus) Result {
 	return pod.queueBox.OrderedQueues(k, start, status)
 }
 
 // RandomQueues TODO
-func (pod *Pod) RandomQueues(k int64, status QueueStatus) Result {
+func (pod *Pod) RandomQueues(k int, status QueueStatus) Result {
 	return pod.queueBox.RandomQueues(k, status)
 }
