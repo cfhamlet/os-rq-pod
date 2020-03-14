@@ -11,6 +11,7 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/go-redis/redis/v7"
+	"github.com/segmentio/fasthash/fnv1a"
 )
 
 // QueueStatus type
@@ -18,14 +19,14 @@ type QueueStatus string
 
 // QueueStatus enum
 const (
-	QueueNilStatus QueueStatus = "nil"
+	QueueUndefined QueueStatus = "undefined"
 	QueueWorking   QueueStatus = "working"
 	QueuePaused    QueueStatus = "paused"
 )
 
 // QueueStatusList TODO
 var QueueStatusList = []QueueStatus{
-	QueueNilStatus,
+	QueueUndefined,
 	QueueWorking,
 	QueuePaused,
 }
@@ -39,6 +40,11 @@ type QueueID struct {
 
 func (qid QueueID) String() string {
 	return strings.Join([]string{qid.Host, qid.Port, qid.Scheme}, ":")
+}
+
+// ItemID TODO
+func (qid QueueID) ItemID() uint64 {
+	return fnv1a.HashString64(qid.String())
 }
 
 // MarshalJSON TODO
@@ -93,7 +99,6 @@ func CreateQueueID(host, port, scheme string) QueueID {
 			port = ""
 		}
 	}
-	host = utils.Reverse(host)
 	return QueueID{Host: host, Port: port, Scheme: scheme}
 }
 

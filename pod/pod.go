@@ -165,13 +165,13 @@ func (pod *Pod) LoadQueues() (err error) {
 			return
 		}
 		log.Logger.Debugf("loading queues, queues %d, requests %d",
-			pod.queueBox.QueueNum(QueueNilStatus), pod.stats.RequestNum())
+			pod.queueBox.QueueNum(QueueUndefined), pod.stats.RequestNum())
 		if cursor == 0 {
 			break
 		}
 	}
 	log.Logger.Debugf("load queues finish, queues %d, requests %d",
-		pod.queueBox.QueueNum(QueueNilStatus), pod.stats.RequestNum())
+		pod.queueBox.QueueNum(QueueUndefined), pod.stats.RequestNum())
 
 	return
 }
