@@ -26,7 +26,7 @@ func QueueIDFromQuery(q string) (qid core.QueueID, err error) {
 		case 2:
 			qid = core.CreateQueueID(s[0], s[1], "http")
 		case 3: // QueueID
-			qid = core.CreateQueueID(utils.Reverse(s[0]), s[1], s[2])
+			qid = core.CreateQueueID(s[0], s[1], s[2])
 		default:
 			err = InvalidQuery(fmt.Sprintf("%q", q))
 		}
