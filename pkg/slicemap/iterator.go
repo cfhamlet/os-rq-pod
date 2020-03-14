@@ -110,3 +110,60 @@ func (iter *RandomKIter) Iter(f func(Item)) {
 		}
 	}
 }
+
+// CycleIter TODO
+type CycleIter struct {
+	m       *Map
+	start   int
+	cur     int
+	steps   int
+	started bool
+}
+
+// NewCycleIter TODO
+func NewCycleIter(m *Map, start, steps int) *CycleIter {
+	return &CycleIter{m, start, start, steps, false}
+}
+
+// SetSteps TODO
+func (iter *CycleIter) SetSteps(steps int) {
+	iter.steps = steps
+}
+
+// Iter TODO
+func (iter *CycleIter) Iter(f func(Item)) {
+	if iter.Done() {
+		return
+	} else if !iter.started {
+		iter.start = iter.start % iter.m.Size()
+		iter.cur = iter.start
+		iter.started = true
+	}
+
+	for i := 0; i < iter.steps; i++ {
+		f(iter.m.items[iter.cur])
+		iter.cur++
+		if iter.cur >= iter.m.Size() {
+			iter.cur = 0
+		}
+		if iter.cur == iter.start {
+			break
+		}
+	}
+}
+
+// Done TODO
+func (iter *CycleIter) Done() bool {
+	if iter.m.Size() <= 0 {
+		return true
+	}
+	if !iter.started {
+		return false
+	}
+
+	if iter.cur != iter.start {
+		return false
+	}
+
+	return true
+}
