@@ -8,11 +8,13 @@ import (
 // Iterator TODO
 type Iterator interface {
 	Iter(func(Item))
+	Break()
 }
 
 // FastIter TODO
 type FastIter struct {
 	m *Map
+	b bool
 }
 
 // Iter TODO
@@ -22,22 +24,37 @@ func (iter *FastIter) Iter(f func(Item)) {
 			break
 		}
 		f(item)
+		if iter.b {
+			iter.b = false
+			break
+		}
 	}
+}
+
+// Break TODO
+func (iter *FastIter) Break() {
+	iter.b = true
 }
 
 // NewFastIter TODO
 func NewFastIter(m *Map) *FastIter {
-	return &FastIter{m}
+	return &FastIter{m, false}
 }
 
 // DeleteSafeIter TODO
 type DeleteSafeIter struct {
 	m *Map
+	b bool
+}
+
+// Break TODO
+func (iter *DeleteSafeIter) Break() {
+	iter.b = true
 }
 
 // NewDeleteSafeIter TODO
 func NewDeleteSafeIter(m *Map) *DeleteSafeIter {
-	return &DeleteSafeIter{m}
+	return &DeleteSafeIter{m, false}
 }
 
 // Iter TODO
@@ -49,10 +66,18 @@ func (iter *DeleteSafeIter) Iter(f func(Item)) {
 			break
 		}
 		f(item)
+		if iter.b {
+			iter.b = false
+			break
+		}
 		if i < len(m.items) {
 			newItem := m.items[i]
 			for newItem != nil && newItem.ItemID() != item.ItemID() {
 				f(newItem)
+				if iter.b {
+					iter.b = false
+					break
+				}
 				item = newItem
 				if i < len(m.items) {
 					newItem = m.items[i]
@@ -68,11 +93,17 @@ type SubIter struct {
 	m     *Map
 	start int
 	n     int
+	b     bool
 }
 
 // NewSubIter TODO
 func NewSubIter(m *Map, start, n int) *SubIter {
-	return &SubIter{m, start, n}
+	return &SubIter{m, start, n, false}
+}
+
+// Break TODO
+func (iter *SubIter) Break() {
+	iter.b = true
 }
 
 // Iter TODO
@@ -82,6 +113,10 @@ func (iter *SubIter) Iter(f func(Item)) {
 			break
 		}
 		f(item)
+		if iter.b {
+			iter.b = false
+			break
+		}
 	}
 }
 
@@ -90,12 +125,18 @@ type RandomKIter struct {
 	m *Map
 	r *rand.Rand
 	k int
+	b bool
 }
 
 // NewRandomKIter TODO
 func NewRandomKIter(m *Map, k int) *RandomKIter {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return &RandomKIter{m, r, k}
+	return &RandomKIter{m, r, k, false}
+}
+
+// Break TODO
+func (iter *RandomKIter) Break() {
+	iter.b = true
 }
 
 // Iter TODO
@@ -103,7 +144,15 @@ func (iter *RandomKIter) Iter(f func(Item)) {
 	i := 0
 	shuffled := iter.r.Perm(iter.m.maxIdx)
 	for _, idx := range shuffled {
-		f(iter.m.items[idx])
+		item := iter.m.items[idx]
+		if item == nil {
+			break
+		}
+		f(item)
+		if iter.b {
+			iter.b = false
+			break
+		}
 		i++
 		if i >= iter.k {
 			break
@@ -113,16 +162,15 @@ func (iter *RandomKIter) Iter(f func(Item)) {
 
 // CycleIter TODO
 type CycleIter struct {
-	m       *Map
-	start   int
-	cur     int
-	steps   int
-	started bool
+	m     *Map
+	cur   int
+	steps int
+	b     bool
 }
 
 // NewCycleIter TODO
 func NewCycleIter(m *Map, start, steps int) *CycleIter {
-	return &CycleIter{m, start, start, steps, false}
+	return &CycleIter{m, start, steps, false}
 }
 
 // SetSteps TODO
@@ -132,38 +180,30 @@ func (iter *CycleIter) SetSteps(steps int) {
 
 // Iter TODO
 func (iter *CycleIter) Iter(f func(Item)) {
-	if iter.Done() {
+	l := iter.m.Size()
+	if l <= 0 {
 		return
-	} else if !iter.started {
-		iter.start = iter.start % iter.m.Size()
-		iter.cur = iter.start
-		iter.started = true
 	}
+	iter.cur = iter.cur % l
 
 	for i := 0; i < iter.steps; i++ {
-		f(iter.m.items[iter.cur])
+		item := iter.m.items[iter.cur]
+		if item == nil {
+			break
+		}
+		f(item)
 		iter.cur++
-		if iter.cur >= iter.m.Size() {
+		if iter.cur >= l {
 			iter.cur = 0
 		}
-		if iter.cur == iter.start {
+		if iter.b {
+			iter.b = false
 			break
 		}
 	}
 }
 
-// Done TODO
-func (iter *CycleIter) Done() bool {
-	if iter.m.Size() <= 0 {
-		return true
-	}
-	if !iter.started {
-		return false
-	}
-
-	if iter.cur != iter.start {
-		return false
-	}
-
-	return true
+// Break TODO
+func (iter *CycleIter) Break() {
+	iter.b = true
 }
