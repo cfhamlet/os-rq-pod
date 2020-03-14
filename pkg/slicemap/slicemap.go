@@ -14,8 +14,8 @@ type Map struct {
 	maxIdx int
 }
 
-// NewMap TODO
-func NewMap() *Map {
+// New TODO
+func New() *Map {
 	return &Map{
 		items:  make([]Item, 0),
 		idxMap: make(map[uint64]int),
@@ -41,7 +41,7 @@ func (m *Map) Add(item Item) {
 }
 
 // Get TODO
-func (m *Map) Get(id int64) Item {
+func (m *Map) Get(id uint64) Item {
 	if idx, ok := m.idxMap[id]; ok {
 		return m.items[idx]
 	}
@@ -64,17 +64,17 @@ func (m *Map) Shrink() {
 	m.shrink()
 }
 
-func (m *Map) delete(id int64) {
-	if curIdx, ok := m.idxMap[id]; ok {
+func (m *Map) delete(id uint64) {
+	if idx, ok := m.idxMap[id]; ok {
 		delete(m.idxMap, id)
-		if curIdx == m.maxIdx-1 {
-			m.items[curIdx] = nil
+		if idx == m.maxIdx-1 {
+			m.items[idx] = nil
 			m.maxIdx--
 		} else {
 			m.maxIdx--
 			item := m.items[m.maxIdx]
-			m.items[curIdx] = item
-			m.idxMap[item.ItemID()] = curIdx
+			m.items[idx] = item
+			m.idxMap[item.ItemID()] = idx
 			m.items[m.maxIdx] = nil
 		}
 	} else {
