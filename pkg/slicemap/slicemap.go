@@ -4,13 +4,13 @@ const minShrinkSize = 1024
 
 // Item TODO
 type Item interface {
-	ItemID() int
+	ItemID() uint64
 }
 
 // Map TODO
 type Map struct {
 	items  []Item
-	idxMap map[int]int
+	idxMap map[uint64]int
 	maxIdx int
 }
 
@@ -18,7 +18,7 @@ type Map struct {
 func NewMap() *Map {
 	return &Map{
 		items:  make([]Item, 0),
-		idxMap: make(map[int]int),
+		idxMap: make(map[uint64]int),
 		maxIdx: 0,
 	}
 }
@@ -41,15 +41,15 @@ func (m *Map) Add(item Item) {
 }
 
 // Get TODO
-func (m *Map) Get(id int) Item {
+func (m *Map) Get(id int64) Item {
 	if idx, ok := m.idxMap[id]; ok {
 		return m.items[idx]
 	}
 	return nil
 }
 
-// Len TODO
-func (m *Map) Len() int {
+// Size TODO
+func (m *Map) Size() int {
 	return m.maxIdx
 }
 
@@ -64,7 +64,7 @@ func (m *Map) Shrink() {
 	m.shrink()
 }
 
-func (m *Map) delete(id int) {
+func (m *Map) delete(id int64) {
 	if curIdx, ok := m.idxMap[id]; ok {
 		delete(m.idxMap, id)
 		if curIdx == m.maxIdx-1 {
@@ -82,9 +82,9 @@ func (m *Map) delete(id int) {
 	}
 
 	// Shrink to prevent slice increasing with no limit.
-	rdt := len(m.items) - m.maxIdx
-	if m.maxIdx > minShrinkSize && rdt > 0 &&
-		(float32(rdt)/float32(m.maxIdx) > 0.1) {
+	overCount := len(m.items) - m.maxIdx
+	if m.maxIdx > minShrinkSize && overCount > 0 &&
+		(float64(overCount)/float64(m.maxIdx) > 0.1) {
 		m.shrink()
 	}
 }
