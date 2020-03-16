@@ -412,10 +412,10 @@ func (pod *Pod) Pause() (result Result, err error) {
 	pod.stLocker.Lock()
 	defer pod.stLocker.Unlock()
 
-	if pod.status == Paused {
-		result = pod.metaInfo()
-	} else if pod.status == Working {
-		pod.setStatus(Paused)
+	if pod.status == Paused || pod.status == Working {
+		if pod.status == Working {
+			pod.setStatus(Paused)
+		}
 		result = pod.metaInfo()
 	} else {
 		err = UnavailableError(pod.status)
@@ -425,7 +425,7 @@ func (pod *Pod) Pause() (result Result, err error) {
 }
 
 func (pod *Pod) start() (err error) {
-	if pod.status == Stopping {
+	if pod.status == Stopping || pod.status == Stopped {
 		err = UnavailableError(pod.status)
 	} else if pod.status == Working {
 	} else {
