@@ -472,12 +472,19 @@ func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, e
 	return
 }
 
-// OrderedQueues TODO
-func (pod *Pod) OrderedQueues(k int, start int, status QueueStatus) Result {
-	return pod.queueBox.OrderedQueues(k, start, status)
+// ViewQueues TODO
+func (pod *Pod) ViewQueues(k int, start int, status QueueStatus) Result {
+	return pod.queueBox.ViewQueues(k, start, status)
 }
 
-// RandomQueues TODO
-func (pod *Pod) RandomQueues(k int, status QueueStatus) Result {
-	return pod.queueBox.RandomQueues(k, status)
+// Queues TODO
+func (pod *Pod) Queues(k int) (result Result, err error) {
+	pod.stLocker.RLock()
+	defer pod.stLocker.RUnlock()
+	if pod.status != Working {
+		err = UnavailableError(pod.status)
+	} else {
+		result = pod.queueBox.Queues(k)
+	}
+	return
 }

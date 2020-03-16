@@ -160,27 +160,16 @@ func ProcessMemory(c *gin.Context, pod *core.Pod) (core.Result, error) {
 	return infoResult(pod.Process.MemoryInfo())
 }
 
-// Queues TODO
-func Queues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
+// ViewQueues TODO
+func ViewQueues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 
-	qt := c.DefaultQuery("t", "w")
-	var status core.QueueStatus
-	switch qt {
-	case "w":
-		status = core.QueueWorking
-	case "p":
-		status = core.QueuePaused
-	default:
-		err = InvalidQuery(fmt.Sprint(`t ["w", "p"]`))
+	qt := c.DefaultQuery("type", string(core.QueueWorking))
+	status, ok := core.QueueStatusMap[qt]
+	if !ok {
+		err = InvalidQuery(fmt.Sprintf(`invalid type '%s'`, qt))
 		return
 	}
 
-	qr := c.DefaultQuery("r", "1")
-	random, e := strconv.ParseBool(qr)
-	if e != nil {
-		err = InvalidQuery(fmt.Sprintf("r=%s %s", qr, err))
-		return
-	}
 	qk := c.DefaultQuery("k", "10")
 	k, e := strconv.ParseInt(qk, 10, 64)
 	if e != nil {
@@ -188,19 +177,32 @@ func Queues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 	} else if k <= 0 || k > 1000 {
 		err = InvalidQuery(fmt.Sprintf("k=%s [1, 1000]", qk))
 	}
-	if err != nil {
-		return
-	}
 
-	if random {
-		result = pod.RandomQueues(int(k), status)
-	} else {
-		qs := c.DefaultQuery("s", "0")
+	if err == nil {
+		qs := c.DefaultQuery("start", "0")
 		s, e := strconv.ParseInt(qs, 10, 64)
 		if e != nil {
-			err = InvalidQuery(fmt.Sprintf("s=%s %s", qs, err))
+			err = InvalidQuery(fmt.Sprintf("start=%s %s", qs, err))
+		} else {
+			result = pod.ViewQueues(int(k), int(s), status)
 		}
-		result = pod.OrderedQueues(int(k), int(s), status)
+	}
+
+	return
+}
+
+// Queues TODO
+func Queues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
+
+	qk := c.DefaultQuery("k", "10")
+	k, e := strconv.ParseInt(qk, 10, 64)
+	if e != nil {
+		err = InvalidQuery(fmt.Sprintf("k=%s %s", qk, err))
+	} else if k <= 0 || k > 1000 {
+		err = InvalidQuery(fmt.Sprintf("k=%s [1, 1000]", qk))
+	}
+	if err == nil {
+		result, err = pod.Queues(int(k))
 	}
 	return
 }

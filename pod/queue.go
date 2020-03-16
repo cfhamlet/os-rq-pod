@@ -24,6 +24,13 @@ const (
 	QueuePaused    QueueStatus = "paused"
 )
 
+// QueueStatusMap TODO
+var QueueStatusMap = map[string]QueueStatus{
+	string(QueueUndefined): QueueUndefined,
+	string(QueueWorking):   QueueWorking,
+	string(QueuePaused):    QueuePaused,
+}
+
 // QueueStatusList TODO
 var QueueStatusList = []QueueStatus{
 	QueueUndefined,
