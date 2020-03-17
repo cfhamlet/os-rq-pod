@@ -92,15 +92,15 @@ type Pod struct {
 }
 
 // NewPod creates RQ object
-func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod, err error) {
+func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod) {
 	proc, err := utils.NewProcess()
 	if err != nil {
-		return
+		panic(err)
 	}
 	stats := NewStats()
 
 	pod = &Pod{
-		client, proc, conf, nil, stats, Preparing,
+		client, proc, conf, nil, stats, Stopped,
 		&sync.RWMutex{}, &sync.RWMutex{}, nil,
 	}
 
@@ -114,6 +114,9 @@ func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod, err error) {
 
 func (pod *Pod) loadQueues(keys []string) (err error) {
 	for _, key := range keys {
+		if pod.status != Preparing {
+			return UnavailableError(pod.status)
+		}
 		qid, e := QueueIDFromRedisKey(key)
 		if e != nil {
 			log.Logger.Warning("invalid key", key, e)
@@ -129,24 +132,20 @@ func (pod *Pod) loadQueues(keys []string) (err error) {
 
 // OnStart TODO
 func (pod *Pod) OnStart() (err error) {
+	pod.setStatus(Preparing)
 	err = pod.LoadQueues()
-	if err != nil {
-		return
+	if err == nil {
+		err = pod.start()
 	}
-	_, err = pod.setStatus(Working)
 	return
 }
 
 // OnStop TODO
 func (pod *Pod) OnStop() (err error) {
-	_, err = pod.setStatus(Stopping)
-	if err != nil {
-		return
-	}
-	_, err = pod.setStatus(Stopped)
-	if err != nil {
-		return
-	}
+	pod.stLocker.Lock()
+	defer pod.stLocker.Unlock()
+	pod.setStatus(Stopping)
+	pod.setStatus(Stopped)
 	return
 }
 
@@ -201,9 +200,7 @@ func (pod *Pod) Info() (result Result, err error) {
 	pod.stLocker.RLock()
 	defer pod.stLocker.RUnlock()
 
-	pod.qLocker.Lock()
 	result = pod.metaInfo()
-	pod.qLocker.Unlock()
 
 	t := time.Now()
 	memoryInfo, err := pod.Client.Info("memory").Result()
@@ -228,7 +225,7 @@ func (pod *Pod) GetRequest(qid QueueID) (result Result, err error) {
 	defer pod.stLocker.RUnlock()
 
 	if pod.status != Working {
-		err = UnavailableError(fmt.Sprintf("pod %s", pod.status))
+		err = UnavailableError(pod.status)
 		return
 	}
 
@@ -257,7 +254,7 @@ func (pod *Pod) AddRequest(rawReq *request.RawRequest) (result Result, err error
 	defer pod.stLocker.RUnlock()
 
 	if pod.status != Working {
-		err = UnavailableError(fmt.Sprintf("pod %s", pod.status))
+		err = UnavailableError(pod.status)
 		return
 	}
 
@@ -410,21 +407,53 @@ func (pod *Pod) QueueInfo(qid QueueID) (Result, error) {
 }
 
 // Pause TODO
-func (pod *Pod) Pause() (Result, error) {
-	return pod.setStatus(Paused)
-}
-
-// Resume TODO
-func (pod *Pod) Resume() (Result, error) {
-	return pod.setStatus(Working)
-}
-
-func (pod *Pod) setStatus(status Status) (Result, error) {
+func (pod *Pod) Pause() (result Result, err error) {
 	pod.stLocker.Lock()
 	defer pod.stLocker.Unlock()
 
+	if pod.status == Paused || pod.status == Working {
+		if pod.status == Working {
+			pod.setStatus(Paused)
+		}
+		result = pod.metaInfo()
+	} else {
+		err = UnavailableError(pod.status)
+	}
+
+	return
+}
+
+func (pod *Pod) start() (err error) {
+	if pod.status == Stopping || pod.status == Stopped {
+		err = UnavailableError(pod.status)
+	} else if pod.status == Working {
+	} else {
+		pod.setStatus(Working)
+	}
+	return
+}
+
+// Resume TODO
+func (pod *Pod) Resume() (result Result, err error) {
+	pod.stLocker.Lock()
+	defer pod.stLocker.Unlock()
+
+	if pod.status == Working {
+		result = pod.metaInfo()
+	} else if pod.status == Paused {
+		err = pod.start()
+		if err == nil {
+			result = pod.metaInfo()
+		}
+	} else {
+		err = UnavailableError(pod.status)
+	}
+
+	return
+}
+
+func (pod *Pod) setStatus(status Status) {
 	pod.status = status
-	return pod.metaInfo(), nil
 }
 
 // ViewQueue TODO
@@ -442,12 +471,19 @@ func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, e
 	return
 }
 
-// OrderedQueues TODO
-func (pod *Pod) OrderedQueues(k int, start int, status QueueStatus) Result {
-	return pod.queueBox.OrderedQueues(k, start, status)
+// ViewQueues TODO
+func (pod *Pod) ViewQueues(k int, start int, status QueueStatus) Result {
+	return pod.queueBox.ViewQueues(k, start, status)
 }
 
-// RandomQueues TODO
-func (pod *Pod) RandomQueues(k int, status QueueStatus) Result {
-	return pod.queueBox.RandomQueues(k, status)
+// Queues TODO
+func (pod *Pod) Queues(k int) (result Result, err error) {
+	pod.stLocker.RLock()
+	defer pod.stLocker.RUnlock()
+	if pod.status != Working {
+		err = UnavailableError(pod.status)
+	} else {
+		result = pod.queueBox.Queues(k)
+	}
+	return
 }

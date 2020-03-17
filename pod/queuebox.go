@@ -137,8 +137,8 @@ func (box *QueueBox) fillQueues(iter slicemap.Iterator) []Result {
 	return out
 }
 
-// OrderedQueues TODO
-func (box *QueueBox) OrderedQueues(k int, start int, status QueueStatus) Result {
+// ViewQueues TODO
+func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
 	queueIDs := box.statusQueueIDs[status]
@@ -162,11 +162,11 @@ func (box *QueueBox) OrderedQueues(k int, start int, status QueueStatus) Result 
 	}
 }
 
-// RandomQueues TODO
-func (box *QueueBox) RandomQueues(k int, status QueueStatus) Result {
+// Queues TODO
+func (box *QueueBox) Queues(k int) Result {
 	box.locker.RLock()
 	defer box.locker.RUnlock()
-	queueIDs := box.statusQueueIDs[status]
+	queueIDs := box.statusQueueIDs[QueueWorking]
 	l := queueIDs.Size()
 	var out []Result
 	if l <= 0 || k <= 0 {
@@ -179,6 +179,5 @@ func (box *QueueBox) RandomQueues(k int, status QueueStatus) Result {
 		"k":      k,
 		"queues": out,
 		"total":  l,
-		"status": status,
 	}
 }
