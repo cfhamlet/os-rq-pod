@@ -8,9 +8,6 @@ import (
 	"go.uber.org/fx"
 )
 
-// Ready TODO
-type Ready chan error
-
 // FailWait TODO
 type FailWait chan error
 
