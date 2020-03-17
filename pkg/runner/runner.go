@@ -2,38 +2,32 @@ package runner
 
 import (
 	"context"
-	"net/http"
+	"sync"
 
-	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"go.uber.org/fx"
 )
 
-// HTTPServerLifecycle TODO
-func HTTPServerLifecycle(lc fx.Lifecycle, server *http.Server) chan error {
-	startFail := make(chan error, 1)
-	lc.Append(
-		fx.Hook{
-			OnStart: func(context.Context) error {
-				go func() {
-					log.Logger.Debug("start server", server.Addr)
-					if err := server.ListenAndServe(); err != http.ErrServerClosed {
-						log.Logger.Error("start fail", err)
-						startFail <- err
-					}
-				}()
-				return nil
-			},
-			OnStop: func(ctx context.Context) error {
-				log.Logger.Debug("stop server", server.Addr)
-				return server.Shutdown(ctx)
-			},
-		})
-
-	return startFail
+func merge(cs ...<-chan error) <-chan error {
+	out := make(chan error)
+	var wg sync.WaitGroup
+	wg.Add(len(cs))
+	for _, c := range cs {
+		go func(c <-chan error) {
+			for v := range c {
+				out <- v
+			}
+			wg.Done()
+		}(c)
+	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
 }
 
 // Run TODO
-func Run(app *fx.App, startFail chan error) {
+func Run(app *fx.App, noWaits ...<-chan error) {
 	defer func() {
 		if err := app.Stop(context.Background()); err != nil {
 			panic(err)
@@ -43,7 +37,7 @@ func Run(app *fx.App, startFail chan error) {
 		panic(err)
 	}
 	select {
-	case <-startFail:
+	case <-merge(noWaits...):
 	case <-app.Done():
 	}
 }

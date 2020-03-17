@@ -92,10 +92,10 @@ type Pod struct {
 }
 
 // NewPod creates RQ object
-func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod, err error) {
+func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod) {
 	proc, err := utils.NewProcess()
 	if err != nil {
-		return
+		panic(err)
 	}
 	stats := NewStats()
 
@@ -114,6 +114,9 @@ func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod, err error) {
 
 func (pod *Pod) loadQueues(keys []string) (err error) {
 	for _, key := range keys {
+		if pod.status != Preparing {
+			return UnavailableError(pod.status)
+		}
 		qid, e := QueueIDFromRedisKey(key)
 		if e != nil {
 			log.Logger.Warning("invalid key", key, e)
@@ -129,9 +132,6 @@ func (pod *Pod) loadQueues(keys []string) (err error) {
 
 // OnStart TODO
 func (pod *Pod) OnStart() (err error) {
-	pod.stLocker.Lock()
-	defer pod.stLocker.Unlock()
-
 	pod.setStatus(Preparing)
 	err = pod.LoadQueues()
 	if err == nil {
@@ -144,7 +144,6 @@ func (pod *Pod) OnStart() (err error) {
 func (pod *Pod) OnStop() (err error) {
 	pod.stLocker.Lock()
 	defer pod.stLocker.Unlock()
-
 	pod.setStatus(Stopping)
 	pod.setStatus(Stopped)
 	return

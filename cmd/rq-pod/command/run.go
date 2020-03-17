@@ -13,7 +13,6 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	core "github.com/cfhamlet/os-rq-pod/pod"
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v7"
 
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
@@ -23,42 +22,47 @@ func init() {
 	Root.AddCommand(command.NewRunCommand("rq-pod", run))
 }
 
-var startFail chan error
+// PodLifecycle TODO
+func PodLifecycle(lc fx.Lifecycle, pod *core.Pod) runner.Ready {
+	ready := make(runner.Ready)
+	lc.Append(
+		fx.Hook{
+			OnStart: func(context.Context) error {
+				go func() {
+					err := pod.OnStart()
+					ready <- err
+				}()
+				return nil
+			},
+			OnStop: func(ctx context.Context) error {
+				return pod.OnStop()
+			},
+		})
+	return ready
+
+}
 
 func run(conf *viper.Viper) {
-	loadConfig := func() (*viper.Viper, error) {
+	newConfig := func() (*viper.Viper, error) {
 		err := config.LoadConfig(conf, defaultConfig.EnvPrefix, defaultConfig.DefaultConfig)
 		return conf, err
-	}
-	newPod := func(lc fx.Lifecycle, conf *viper.Viper, client *redis.Client) (pod *core.Pod, err error) {
-		pod, err = core.NewPod(conf, client)
-		if err != nil {
-			return
-		}
-		lc.Append(
-			fx.Hook{
-				OnStart: func(context.Context) error {
-					return pod.OnStart()
-				},
-				OnStop: func(ctx context.Context) error {
-					return pod.OnStop()
-				},
-			})
-		return
 	}
 
 	newEngine := func(*core.Pod) *gin.Engine {
 		return ginserv.NewEngine(conf)
 	}
 
+	var failWait runner.FailWait
+
 	app := fx.New(
 		fx.Provide(
-			loadConfig,
+			newConfig,
 			utils.NewRedisClient,
-			newPod,
+			core.NewPod,
 			newEngine,
 			ginserv.NewServer,
 			ginserv.NewAPIGroup,
+			PodLifecycle,
 			runner.HTTPServerLifecycle,
 		),
 		fx.Invoke(
@@ -67,8 +71,8 @@ func run(conf *viper.Viper) {
 			ginserv.LoadGlobalMiddlewares,
 			router.InitAPIRouter,
 		),
-		fx.Populate(&startFail),
+		fx.Populate(&failWait),
 	)
 
-	runner.Run(app, startFail)
+	runner.Run(app, failWait)
 }
