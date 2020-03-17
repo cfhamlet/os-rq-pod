@@ -132,6 +132,9 @@ func (pod *Pod) loadQueues(keys []string) (err error) {
 
 // OnStart TODO
 func (pod *Pod) OnStart() (err error) {
+	if pod.status != Stopped {
+		return UnavailableError(pod.status)
+	}
 	pod.setStatus(Preparing)
 	err = pod.LoadQueues()
 	if err == nil {
