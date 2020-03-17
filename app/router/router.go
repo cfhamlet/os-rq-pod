@@ -29,13 +29,13 @@ func InitAPIRouter(g ginserv.RouterGroup, pod *core.Pod) {
 		{g.POST, "/request/push/", controller.AddRequest},
 		{g.GET, "/request/pop/", controller.GetRequest},
 
-		{g.GET, "/sys/info/", controller.Info},
-		{g.GET, "/sys/info/process/memory/", controller.ProcessMemory},
-		{g.GET, "/sys/info/redis/memory/", controller.RedisMemory},
-		{g.GET, "/sys/info/redis/", controller.RedisInfo},
+		{g.GET, "/system/info/", controller.Info},
+		{g.GET, "/system/info/process/memory/", controller.ProcessMemory},
+		{g.GET, "/system/info/redis/memory/", controller.RedisMemory},
+		{g.GET, "/system/info/redis/", controller.RedisInfo},
 
-		{g.POST, "/sys/ctrl/pause/", controller.Pause},
-		{g.POST, "/sys/ctrl/resume/", controller.Resume},
+		{g.POST, "/system/ctrl/pause/", controller.Pause},
+		{g.POST, "/system/ctrl/resume/", controller.Resume},
 	}
 
 	wp := controller.NewHandlerWrapper(pod)
