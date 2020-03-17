@@ -130,15 +130,30 @@ func (pod *Pod) loadQueues(keys []string) (err error) {
 	return
 }
 
+func stopStatus(status Status) bool {
+	return status == Stopped || status == Stopping
+}
+
 // OnStart TODO
 func (pod *Pod) OnStart() (err error) {
+	pod.stLocker.Lock()
 	if pod.status != Stopped {
+		pod.stLocker.Unlock()
 		return UnavailableError(pod.status)
 	}
 	pod.setStatus(Preparing)
+	pod.stLocker.Unlock()
+
 	err = pod.LoadQueues()
 	if err == nil {
 		err = pod.start()
+	}
+	switch err.(type) {
+	case UnavailableError:
+		if stopStatus(pod.status) {
+			log.Logger.Warning("stop when starting")
+			return nil
+		}
 	}
 	return
 }
@@ -158,6 +173,9 @@ func (pod *Pod) LoadQueues() (err error) {
 	log.Logger.Debug("load queues start")
 	var cursor uint64
 	for {
+		if pod.status != Preparing {
+			return UnavailableError(pod.status)
+		}
 		var keys []string
 		keys, cursor, err = pod.Client.Scan(cursor, RedisQueueKeyPrefix+"*", 2000).Result()
 		if err == nil {
