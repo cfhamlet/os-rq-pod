@@ -7,6 +7,35 @@ import (
 	"go.uber.org/fx"
 )
 
+// Ready TODO
+type Ready chan error
+
+// ServeFlow TODO
+type ServeFlow interface {
+	OnStart() error
+	OnStop() error
+}
+
+// ServeFlowLifecycle TODO
+func ServeFlowLifecycle(lc fx.Lifecycle, serv ServeFlow) Ready {
+	ready := make(Ready)
+	lc.Append(
+		fx.Hook{
+			OnStart: func(context.Context) error {
+				go func() {
+					err := serv.OnStart()
+					ready <- err
+				}()
+				return nil
+			},
+			OnStop: func(ctx context.Context) error {
+				return serv.OnStop()
+			},
+		})
+	return ready
+
+}
+
 func merge(cs ...<-chan error) <-chan error {
 	out := make(chan error)
 	var wg sync.WaitGroup

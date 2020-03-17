@@ -1,8 +1,6 @@
 package command
 
 import (
-	"context"
-
 	"github.com/cfhamlet/os-rq-pod/app/router"
 	defaultConfig "github.com/cfhamlet/os-rq-pod/internal/config"
 	"github.com/cfhamlet/os-rq-pod/pkg/command"
@@ -22,26 +20,6 @@ func init() {
 	Root.AddCommand(command.NewRunCommand("rq-pod", run))
 }
 
-// PodLifecycle TODO
-func PodLifecycle(lc fx.Lifecycle, pod *core.Pod) runner.Ready {
-	ready := make(runner.Ready)
-	lc.Append(
-		fx.Hook{
-			OnStart: func(context.Context) error {
-				go func() {
-					err := pod.OnStart()
-					ready <- err
-				}()
-				return nil
-			},
-			OnStop: func(ctx context.Context) error {
-				return pod.OnStop()
-			},
-		})
-	return ready
-
-}
-
 func run(conf *viper.Viper) {
 	newConfig := func() (*viper.Viper, error) {
 		err := config.LoadConfig(conf, defaultConfig.EnvPrefix, defaultConfig.DefaultConfig)
@@ -50,6 +28,10 @@ func run(conf *viper.Viper) {
 
 	newEngine := func(*core.Pod) *gin.Engine {
 		return ginserv.NewEngine(conf)
+	}
+
+	podLifecycle := func(lc fx.Lifecycle, pod *core.Pod) runner.Ready {
+		return runner.ServeFlowLifecycle(lc, pod)
 	}
 
 	var failWait runner.FailWait
@@ -62,7 +44,7 @@ func run(conf *viper.Viper) {
 			newEngine,
 			ginserv.NewServer,
 			ginserv.NewAPIGroup,
-			PodLifecycle,
+			podLifecycle,
 			runner.HTTPServerLifecycle,
 		),
 		fx.Invoke(
