@@ -26,14 +26,14 @@ func NewCallByQueueIDOperation(pod *Pod, f FuncWithQueueID) *CallByQueueID {
 
 // ViewQueue TODO
 type ViewQueue struct {
-	R     *Pod
+	pod   *Pod
 	Start int64
 	End   int64
 }
 
 // Operate TODO
 func (opt *ViewQueue) Operate(id QueueID) (Result, error) {
-	return opt.R.ViewQueue(id, opt.Start, opt.End)
+	return opt.pod.ViewQueue(id, opt.Start, opt.End)
 }
 
 // NewViewQueueOperation TODO
