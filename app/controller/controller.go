@@ -49,6 +49,9 @@ func AddRequest(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 	return
 }
 
+// CallByQueueID TODO
+type CallByQueueID func(core.QueueID) (core.Result, error)
+
 // Resume TODO
 func Resume(c *gin.Context, pod *core.Pod) (core.Result, error) {
 	return pod.Resume()
@@ -66,16 +69,15 @@ func Info(c *gin.Context, pod *core.Pod) (core.Result, error) {
 
 // GetRequest TODO
 func GetRequest(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return callOperateQueueByQuery(c, pod, pod.GetRequest)
+	return operateQueueByQuery(c, pod.GetRequest)
 }
 
-// OperateQueueByQuery TODO
-func operateQueueByQuery(c *gin.Context, opt core.QueueOperation) (result core.Result, err error) {
+func operateQueueByQuery(c *gin.Context, f CallByQueueID) (result core.Result, err error) {
 	q := c.Query("q")
 
 	qid, err := QueueIDFromQuery(q)
 	if err == nil {
-		result, err = opt.Operate(qid)
+		result, err = f(qid)
 	}
 	if result == nil {
 		result = core.Result{"qid": qid}
@@ -83,38 +85,34 @@ func operateQueueByQuery(c *gin.Context, opt core.QueueOperation) (result core.R
 	return
 }
 
-func callOperateQueueByQuery(c *gin.Context, pod *core.Pod, f core.FuncWithQueueID) (core.Result, error) {
-	return operateQueueByQuery(c, core.NewCallByQueueIDOperation(pod, f))
-}
-
 // PauseQueue TODO
 func PauseQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return callOperateQueueByQuery(c, pod, pod.PauseQueue)
+	return operateQueueByQuery(c, pod.PauseQueue)
 }
 
 // ResumeQueue TODO
 func ResumeQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return callOperateQueueByQuery(c, pod, pod.ResumeQueue)
+	return operateQueueByQuery(c, pod.ResumeQueue)
 }
 
 // QueueInfo TODO
 func QueueInfo(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return callOperateQueueByQuery(c, pod, pod.QueueInfo)
+	return operateQueueByQuery(c, pod.QueueInfo)
 }
 
 // DeleteQueue TODO
 func DeleteQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return callOperateQueueByQuery(c, pod, pod.DeleteQueue)
+	return operateQueueByQuery(c, pod.DeleteQueue)
 }
 
 // ClearQueue TODO
 func ClearQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return callOperateQueueByQuery(c, pod, pod.ClearQueue)
+	return operateQueueByQuery(c, pod.ClearQueue)
 }
 
 // SyncQueue TODO
 func SyncQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return callOperateQueueByQuery(c, pod, pod.ForceSyncQueue)
+	return operateQueueByQuery(c, pod.ForceSyncQueue)
 }
 
 // ViewQueue  TODO
@@ -133,12 +131,15 @@ func ViewQueue(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 			}
 		}
 	}
-	if err == nil {
-		result, err = operateQueueByQuery(c,
-			core.NewViewQueueOperation(pod, start, end))
+	if err != nil {
+		return
 	}
 
-	return
+	return operateQueueByQuery(c,
+		func(qid core.QueueID) (core.Result, error) {
+			return pod.ViewQueue(qid, start, end)
+		},
+	)
 }
 
 func infoResult(info interface{}, err error) (core.Result, error) {
@@ -184,7 +185,7 @@ func ViewQueues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 		if e != nil {
 			err = InvalidQuery(fmt.Sprintf("start=%s %s", qs, err))
 		} else {
-			result = pod.ViewQueues(int(k), int(s), status)
+			result, err = pod.ViewQueues(int(k), int(s), status)
 		}
 	}
 
