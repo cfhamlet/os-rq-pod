@@ -2,7 +2,6 @@ package pod
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -112,24 +111,6 @@ func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod) {
 	return
 }
 
-func (pod *Pod) loadQueues(keys []string) (err error) {
-	for _, key := range keys {
-		if pod.status != Preparing {
-			return UnavailableError(pod.status)
-		}
-		qid, e := QueueIDFromRedisKey(key)
-		if e != nil {
-			log.Logger.Warning("invalid key", key, e)
-		} else {
-			_, err = pod.queueBox.AddQueue(qid)
-			if err != nil {
-				break
-			}
-		}
-	}
-	return
-}
-
 func stopStatus(status Status) bool {
 	return status == Stopped || status == Stopping
 }
@@ -144,7 +125,7 @@ func (pod *Pod) OnStart() (err error) {
 	pod.setStatus(Preparing)
 	pod.stLocker.Unlock()
 
-	err = pod.LoadQueues()
+	err = pod.queueBox.LoadQueues()
 	if err == nil {
 		err = pod.start()
 	}
@@ -163,36 +144,8 @@ func (pod *Pod) OnStop() (err error) {
 	pod.stLocker.Lock()
 	defer pod.stLocker.Unlock()
 	pod.setStatus(Stopping)
+	// TODO
 	pod.setStatus(Stopped)
-	return
-}
-
-// LoadQueues TODO
-func (pod *Pod) LoadQueues() (err error) {
-
-	log.Logger.Debug("load queues start")
-	var cursor uint64
-	for {
-		if pod.status != Preparing {
-			return UnavailableError(pod.status)
-		}
-		var keys []string
-		keys, cursor, err = pod.Client.Scan(cursor, RedisQueueKeyPrefix+"*", 2000).Result()
-		if err == nil {
-			err = pod.loadQueues(keys)
-		}
-		if err != nil {
-			return
-		}
-		log.Logger.Debugf("loading queues, queues %d, requests %d",
-			pod.queueBox.QueueNum(QueueUndefined), pod.stats.RequestNum())
-		if cursor == 0 {
-			break
-		}
-	}
-	log.Logger.Debugf("load queues finish, queues %d, requests %d",
-		pod.queueBox.QueueNum(QueueUndefined), pod.stats.RequestNum())
-
 	return
 }
 
@@ -249,24 +202,7 @@ func (pod *Pod) GetRequest(qid QueueID) (result Result, err error) {
 		err = UnavailableError(pod.status)
 		return
 	}
-
-	pod.qLocker.RLock()
-	queue, ok := pod.queueBox.GetQueue(qid)
-	if ok {
-		result, err = queue.Get()
-		qsize := queue.QueueSize()
-		pod.qLocker.RUnlock()
-		if (err == nil && qsize <= 0) || err == redis.Nil {
-			_, _ = pod.SyncQueue(qid)
-			if err == redis.Nil {
-				err = QueueNotExist
-			}
-		}
-	} else {
-		pod.qLocker.RUnlock()
-		err = QueueNotExist
-	}
-	return
+	return pod.queueBox.GetRequest(qid)
 }
 
 // AddRequest TODO
@@ -289,49 +225,8 @@ func (pod *Pod) AddRequest(rawReq *request.RawRequest) (result Result, err error
 		return
 	}
 	qid := QueueIDFromRequest(req)
-	pod.qLocker.RLock()
-	queue, ok := pod.queueBox.GetQueue(qid)
-	if !ok {
-		queue, err = pod.queueBox.AddQueue(qid)
-	}
-	if err == nil {
-		result, err = queue.Put(req)
-		pod.qLocker.RUnlock()
-		if err != nil {
-			switch err.(type) {
-			case UnavailableError:
-			default:
-				_ = pod.dropIdleQueue(qid)
-			}
-		}
-	} else {
-		pod.qLocker.RUnlock()
-	}
 
-	return
-}
-
-func (pod *Pod) operateQueue(qid QueueID, optName string, rlock bool) (result Result, err error) {
-
-	if rlock {
-		pod.qLocker.RLock()
-		defer pod.qLocker.RUnlock()
-	}
-
-	queue, ok := pod.queueBox.GetQueue(qid)
-
-	if ok {
-		results := reflect.ValueOf(queue).MethodByName(optName).Call([]reflect.Value{})
-		result = results[0].Interface().(Result)
-		e := results[1].Interface()
-		if e != nil {
-			err = e.(error)
-		}
-	} else {
-		err = QueueNotExist
-	}
-
-	return
+	return pod.queueBox.AddRequest(qid, req)
 }
 
 // PauseQueue TODO
@@ -346,85 +241,27 @@ func (pod *Pod) ResumeQueue(qid QueueID) (result Result, err error) {
 
 // DeleteQueue TODO
 func (pod *Pod) DeleteQueue(qid QueueID) (Result, error) {
-	return pod.clearQueue(qid, true)
+	return pod.queueBox.DeleteQueue(qid)
 }
 
 // ClearQueue TODO
 func (pod *Pod) ClearQueue(qid QueueID) (Result, error) {
-	return pod.clearQueue(qid, false)
-}
-
-func (pod *Pod) clearQueue(qid QueueID, delete bool) (result Result, err error) {
-
-	if delete {
-		pod.qLocker.Lock()
-		defer pod.qLocker.Unlock()
-	}
-
-	result, err = pod.operateQueue(qid, "Clear", !delete)
-
-	if err == nil && delete {
-		err = pod.queueBox.RemoveQueue(qid)
-	}
-
-	return
+	return pod.queueBox.ClearQueue(qid)
 }
 
 // ForceSyncQueue TODO
 func (pod *Pod) ForceSyncQueue(qid QueueID) (result Result, err error) {
-	return pod.syncQueue(qid, true)
+	return pod.queueBox.SyncQueue(qid, true)
 }
 
 // SyncQueue TODO
 func (pod *Pod) SyncQueue(qid QueueID) (result Result, err error) {
-	return pod.syncQueue(qid, false)
-}
-
-// SyncQueue TODO
-func (pod *Pod) syncQueue(qid QueueID, force bool) (result Result, err error) {
-	pod.qLocker.RLock()
-
-	queue, ok := pod.queueBox.GetQueue(qid)
-	if !ok {
-		if force {
-			queue, err = pod.queueBox.AddQueue(qid)
-		} else {
-			err = QueueNotExist
-			pod.qLocker.RUnlock()
-			return
-		}
-	}
-
-	if err == nil {
-		result, err = queue.Sync(true)
-		pod.qLocker.RUnlock()
-
-		if err == nil || !ok {
-			_ = pod.dropIdleQueue(qid)
-		}
-	} else {
-		pod.qLocker.RUnlock()
-	}
-
-	return
-}
-
-func (pod *Pod) dropIdleQueue(qid QueueID) (err error) {
-	pod.qLocker.Lock()
-	defer pod.qLocker.Unlock()
-
-	queue, ok := pod.queueBox.GetQueue(qid)
-	if ok {
-		if queue.Idle() {
-			err = pod.queueBox.RemoveQueue(qid)
-		}
-	}
-	return
+	return pod.queueBox.SyncQueue(qid, false)
 }
 
 // QueueInfo TODO
 func (pod *Pod) QueueInfo(qid QueueID) (Result, error) {
-	return pod.operateQueue(qid, "Info", true)
+	return pod.queueBox.QueueInfo(qid)
 }
 
 // Pause TODO
@@ -478,18 +315,8 @@ func (pod *Pod) setStatus(status Status) {
 }
 
 // ViewQueue TODO
-func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, err error) {
-	pod.qLocker.RLock()
-	defer pod.qLocker.RUnlock()
-
-	queue, ok := pod.queueBox.GetQueue(qid)
-	if ok {
-		result, err = queue.View(start, end)
-	} else {
-		err = QueueNotExist
-	}
-
-	return
+func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (Result, error) {
+	return pod.queueBox.ViewQueue(qid, start, end)
 }
 
 // ViewQueues TODO

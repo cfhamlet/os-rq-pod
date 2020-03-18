@@ -114,13 +114,7 @@ func NewQueue(pod *Pod, id QueueID, status QueueStatus) *Queue {
 	return &Queue{pod, id, status, RedisKeyFromQueueID(id), 0, &sync.RWMutex{}, time.Now(), 0, 0}
 }
 
-// Sync TODO
-func (queue *Queue) Sync(lock bool) (result Result, err error) {
-	if lock {
-		queue.locker.Lock()
-		defer queue.locker.Unlock()
-	}
-
+func (queue *Queue) sync() (result Result, err error) {
 	result = queue.metaInfo()
 	oldSize := queue.qsize
 	newSize, err := queue.pod.Client.LLen(queue.redisKey).Result()
@@ -139,6 +133,13 @@ func (queue *Queue) Sync(lock bool) (result Result, err error) {
 		}
 	}
 	return
+}
+
+// Sync TODO
+func (queue *Queue) Sync() (result Result, err error) {
+	queue.locker.Lock()
+	defer queue.locker.Unlock()
+	return queue.sync()
 }
 
 func (queue *Queue) updateInput(n int64) int64 {
@@ -220,7 +221,7 @@ func (queue *Queue) Put(request *request.Request) (Result, error) {
 }
 
 // Get TODO
-func (queue *Queue) Get() (result Result, err error) {
+func (queue *Queue) Get() (result Result, qsize int64, err error) {
 	queue.locker.RLock()
 	defer queue.locker.RUnlock()
 
@@ -230,7 +231,7 @@ func (queue *Queue) Get() (result Result, err error) {
 	}
 	dequeuing := queue.incrDequeuing(1)
 	defer queue.decrDequeuing(1)
-	qsize := queue.QueueSize()
+	qsize = queue.QueueSize()
 
 	if dequeuing > qsize || dequeuing > 198405 {
 		err = UnavailableError(fmt.Sprintf("%s qsize %d, dequeuing %d", queue.ID, qsize, dequeuing))
@@ -241,9 +242,12 @@ func (queue *Queue) Get() (result Result, err error) {
 	if err != nil {
 		return
 	}
-	queue.updateOutput(1)
+	qsize = queue.updateOutput(1)
 	result = Result{}
 	err = json.Unmarshal([]byte(r), &result)
+	if err != nil {
+		result = nil
+	}
 	return
 }
 
@@ -265,7 +269,7 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 	queue.locker.Lock()
 	defer queue.locker.Unlock()
 
-	result, err = queue.Sync(false)
+	result, err = queue.sync()
 	if err == nil {
 		var requests []string
 		requests, err = queue.pod.Client.LRange(queue.redisKey, start, end).Result()
@@ -299,7 +303,7 @@ func (queue *Queue) SetStatus(status QueueStatus) (result Result, err error) {
 	} else {
 		oldStatus := queue.status
 		queue.status = status
-		result, err = queue.Sync(false)
+		result, err = queue.sync()
 		if err != nil {
 			queue.status = oldStatus
 			result["status"] = oldStatus
