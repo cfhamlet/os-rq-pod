@@ -170,18 +170,6 @@ func (pod *Pod) OnStop() (err error) {
 	return
 }
 
-// MemoryInfo TODO
-func MemoryInfo(p *process.Process) *process.MemoryInfoStat {
-	m, _ := p.MemoryInfo()
-	return m
-}
-
-// CPUPercent TODO
-func CPUPercent(p *process.Process) float64 {
-	c, _ := p.CPUPercent()
-	return c
-}
-
 // metaInfo TODO
 func (pod *Pod) metaInfo() (result Result) {
 	return Result{
@@ -189,9 +177,9 @@ func (pod *Pod) metaInfo() (result Result) {
 		"stats":  pod.stats.Stats(),
 		"status": pod.status,
 		"process": Result{
-			"memory": MemoryInfo(pod.Process),
+			"memory": utils.MemoryInfo(pod.Process),
 			"cpu": Result{
-				"percent": CPUPercent(pod.Process),
+				"percent": utils.CPUPercent(pod.Process),
 			},
 		},
 	}
