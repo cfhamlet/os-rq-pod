@@ -200,7 +200,7 @@ func (pod *Pod) Info() (result Result, err error) {
 	memoryInfo, err := pod.Client.Info("memory").Result()
 
 	if err == nil {
-		r := Result{"latency_ms": float64(time.Since(t)) / 1000000}
+		r := Result{"cost_ms": float64(time.Since(t)) / 1000000}
 		k, v := utils.ParseRedisInfo(memoryInfo, "used_memory_rss")
 		if k != "" {
 			r[k] = v
@@ -215,38 +215,38 @@ func (pod *Pod) Info() (result Result, err error) {
 
 // GetRequest TODO
 func (pod *Pod) GetRequest(qid QueueID) (result Result, err error) {
-	pod.RLock()
-	defer pod.RUnlock()
-
-	if pod.status != Working {
-		err = UnavailableError(pod.status)
-		return
-	}
-	return pod.queueBox.GetRequest(qid)
+	return pod.withRLockOnWorkStatus(
+		func() (Result, error) {
+			if pod.status != Working {
+				return nil, UnavailableError(pod.status)
+			}
+			return pod.queueBox.GetRequest(qid)
+		},
+	)
 }
 
 // AddRequest TODO
 func (pod *Pod) AddRequest(rawReq *request.RawRequest) (result Result, err error) {
-	pod.RLock()
-	defer pod.RUnlock()
+	return pod.withRLockOnWorkStatus(
+		func() (result Result, err error) {
+			if pod.status != Working {
+				err = UnavailableError(pod.status)
+				return
+			}
+			var req *request.Request
+			req, err = request.NewRequest(rawReq)
+			if err != nil {
+				return
+			}
+			err = pod.limiter.AllowedNewRequest(req)
+			if err != nil {
+				return
+			}
+			qid := QueueIDFromRequest(req)
 
-	if pod.status != Working {
-		err = UnavailableError(pod.status)
-		return
-	}
-
-	var req *request.Request
-	req, err = request.NewRequest(rawReq)
-	if err != nil {
-		return
-	}
-	err = pod.limiter.AllowedNewRequest(req)
-	if err != nil {
-		return
-	}
-	qid := QueueIDFromRequest(req)
-
-	return pod.queueBox.AddRequest(qid, req)
+			return pod.queueBox.AddRequest(qid, req)
+		},
+	)
 }
 
 func (pod *Pod) withLockRLockOnWorkStatus(f func() (Result, error), lock bool) (result Result, err error) {
@@ -375,13 +375,11 @@ func (pod *Pod) setStatus(status Status) {
 
 // ViewQueue TODO
 func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, err error) {
-	pod.RLock()
-	defer pod.RUnlock()
-	if !workStatus(pod.status) {
-		err = UnavailableError(pod.status)
-		return
-	}
-	return pod.queueBox.ViewQueue(qid, start, end)
+	return pod.withRLockOnWorkStatus(
+		func() (Result, error) {
+			return pod.queueBox.ViewQueue(qid, start, end)
+		},
+	)
 }
 
 // ViewQueues TODO
@@ -397,6 +395,9 @@ func (pod *Pod) ViewQueues(k int, start int, status QueueStatus) (result Result,
 func (pod *Pod) Queues(k int) (result Result, err error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
+			if pod.status == Paused {
+				return nil, UnavailableError(pod.status)
+			}
 			return pod.queueBox.Queues(k), nil
 		},
 	)

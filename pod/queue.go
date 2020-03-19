@@ -317,7 +317,10 @@ func (queue *Queue) SetStatus(status QueueStatus) (result Result, err error) {
 func (queue *Queue) Idle() bool {
 	queue.locker.Lock()
 	defer queue.locker.Unlock()
-	return queue.qsize <= 0 && queue.status == QueueWorking && queue.queuing <= 0
+	return queue.qsize <= 0 &&
+		(queue.status == QueueWorking ||
+			queue.status == QueueUndefined) &&
+		queue.queuing <= 0
 }
 
 // Clear TODO
@@ -328,6 +331,7 @@ func (queue *Queue) Clear() (result Result, err error) {
 	result = queue.metaInfo()
 	result["drop"] = 0
 
+	t := time.Now()
 	err = queue.pod.Client.Watch(func(tx *redis.Tx) error {
 		drop, err := tx.LLen(queue.redisKey).Result()
 		if err == nil {
@@ -338,6 +342,9 @@ func (queue *Queue) Clear() (result Result, err error) {
 		}
 		return err
 	}, queue.redisKey)
+	result["redis"] = Result{
+		"cost_ms": float64(time.Since(t)) / 1000000,
+	}
 
 	if err == nil && queue.qsize != 0 {
 		queue.pod.stats.IncrRequestNum(0 - queue.qsize)

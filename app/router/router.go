@@ -27,7 +27,7 @@ func InitAPIRouter(g ginserv.RouterGroup, pod *core.Pod) {
 		{g.GET, "/queues/view/", controller.ViewQueues},
 
 		{g.POST, "/request/push/", controller.AddRequest},
-		{g.GET, "/request/pop/", controller.GetRequest},
+		{g.POST, "/request/pop/", controller.GetRequest},
 
 		{g.GET, "/system/info/", controller.Info},
 		{g.GET, "/system/info/process/memory/", controller.ProcessMemory},
