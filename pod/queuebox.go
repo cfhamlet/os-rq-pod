@@ -103,7 +103,7 @@ func (box *QueueBox) SyncQueue(qid QueueID, force bool) (result Result, err erro
 	queue, ok := box.queues[qid]
 	if !ok {
 		if force {
-			queue, err = box.addQueue(qid, QueueUndefined)
+			queue, err = box.addQueue(qid, QueueUnsync)
 		} else {
 			err = QueueNotExist
 			box.RUnlock()
@@ -179,7 +179,7 @@ func (box *QueueBox) addQueue(qid QueueID, status QueueStatus) (queue *Queue, er
 		return
 	}
 
-	queue = NewQueue(box.pod, qid, QueueUndefined)
+	queue = NewQueue(box.pod, qid, QueueUnsync)
 	_, err = queue.SetStatus(status)
 	if err != nil {
 		queue = nil
@@ -288,7 +288,7 @@ func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (result 
 func (box *QueueBox) QueuesNum(status QueueStatus) int {
 	box.Lock()
 	defer box.Unlock()
-	if status == QueueUndefined {
+	if status == QueueUnsync {
 		return len(box.queues)
 	}
 	return box.statusQueueIDs[status].Size()
