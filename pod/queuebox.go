@@ -86,11 +86,11 @@ func (box *QueueBox) LoadQueues() (err error) {
 // DeleteIdleQueue TODO
 func (box *QueueBox) DeleteIdleQueue(qid QueueID) (err error) {
 	_, err = box.withLock(qid,
-		func(queue *Queue) (Result, error) {
+		func(queue *Queue) (result Result, err error) {
 			if queue.Idle() {
-				err = box.deleteQueue(qid)
+				err = queue.SetStatus(QueueRemoved)
 			}
-			return nil, err
+			return
 		},
 	)
 	return err
@@ -103,7 +103,7 @@ func (box *QueueBox) SyncQueue(qid QueueID, force bool) (result Result, err erro
 	queue, ok := box.queues[qid]
 	if !ok {
 		if force {
-			queue, err = box.addQueue(qid, QueueUndefined)
+			queue, err = box.addQueue(qid, QueueInit)
 		} else {
 			err = QueueNotExist
 			box.RUnlock()
@@ -178,39 +178,28 @@ func (box *QueueBox) addQueue(qid QueueID, status QueueStatus) (queue *Queue, er
 	if ok {
 		return
 	}
-
-	queue = NewQueue(box.pod, qid, QueueUndefined)
-	_, err = queue.SetStatus(status)
+	queue = NewQueue(box.pod, qid, QueueInit)
+	err = queue.SetStatus(status)
+	if err == nil {
+		_, err = queue.Sync()
+	}
 	if err != nil {
+		_ = queue.SetStatus(QueueRemoved)
 		queue = nil
 		return
 	}
-	box.queues[qid] = queue
-	box.statusQueueIDs[status].Add(qid)
-	return
-}
-
-func (box *QueueBox) deleteQueue(qid QueueID) (err error) {
-	_, err = box.withExist(qid,
-		func(queue *Queue) (Result, error) {
-			status := queue.Status()
-			delete(box.queues, qid)
-			box.statusQueueIDs[status].Delete(qid)
-			return nil, err
-		},
-	)
 	return
 }
 
 // DeleteQueue TODO
-func (box *QueueBox) DeleteQueue(qid QueueID) (result Result, err error) {
+func (box *QueueBox) DeleteQueue(qid QueueID) (Result, error) {
 	return box.withLock(qid,
-		func(queue *Queue) (Result, error) {
+		func(queue *Queue) (result Result, err error) {
 			result, err = queue.Clear()
 			if err == nil {
-				_ = box.deleteQueue(qid)
+				err = queue.SetStatus(QueueRemoved)
 			}
-			return result, err
+			return
 		},
 	)
 }
@@ -221,16 +210,16 @@ type CallByQueue func(*Queue) (Result, error)
 func (box *QueueBox) withRLock(qid QueueID, f CallByQueue) (result Result, err error) {
 	box.RLock()
 	defer box.RUnlock()
-	return box.withExist(qid, f)
+	return box.mustExist(qid, f)
 }
 
 func (box *QueueBox) withLock(qid QueueID, f CallByQueue) (result Result, err error) {
 	box.Lock()
 	defer box.Unlock()
-	return box.withExist(qid, f)
+	return box.mustExist(qid, f)
 }
 
-func (box *QueueBox) withExist(qid QueueID, f CallByQueue) (Result, error) {
+func (box *QueueBox) mustExist(qid QueueID, f CallByQueue) (Result, error) {
 	queue, ok := box.queues[qid]
 	if !ok {
 		return nil, QueueNotExist
@@ -248,7 +237,7 @@ func (box *QueueBox) ViewQueue(qid QueueID, start int64, end int64) (result Resu
 }
 
 // ClearQueue TODO
-func (box *QueueBox) ClearQueue(qid QueueID) (result Result, err error) {
+func (box *QueueBox) ClearQueue(qid QueueID) (Result, error) {
 	return box.withRLock(qid,
 		func(queue *Queue) (Result, error) {
 			return queue.Clear()
@@ -257,38 +246,23 @@ func (box *QueueBox) ClearQueue(qid QueueID) (result Result, err error) {
 }
 
 // UpdateQueueStatus TODO
-func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (result Result, err error) {
-	box.Lock()
-	defer box.Unlock()
-
-	queue, ok := box.queues[qid]
-
-	if !ok {
-		err = QueueNotExist
-		return
-	}
-
-	oldStatus := queue.Status()
-	if oldStatus == status {
-		result, err = queue.Info()
-		return
-	}
-
-	result, err = queue.SetStatus(status)
-
-	if err != nil {
-		return
-	}
-	box.statusQueueIDs[oldStatus].Delete(qid)
-	box.statusQueueIDs[status].Add(qid)
-	return
+func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (Result, error) {
+	return box.withLock(qid,
+		func(queue *Queue) (result Result, err error) {
+			err = queue.SetStatus(status)
+			if err == nil {
+				result, err = queue.Info()
+			}
+			return
+		},
+	)
 }
 
 // QueuesNum TODO
 func (box *QueueBox) QueuesNum(status QueueStatus) int {
 	box.Lock()
 	defer box.Unlock()
-	if status == QueueUndefined {
+	if status == QueueInit {
 		return len(box.queues)
 	}
 	return box.statusQueueIDs[status].Size()
