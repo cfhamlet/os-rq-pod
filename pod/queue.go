@@ -117,7 +117,11 @@ func NewQueue(pod *Pod, id QueueID, status QueueStatus) *Queue {
 func (queue *Queue) sync() (result Result, err error) {
 	result = queue.metaInfo()
 	oldSize := queue.qsize
+	t := time.Now()
 	newSize, err := queue.pod.Client.LLen(queue.redisKey).Result()
+	result["redis"] = Result{
+		"cost_ms": float64(time.Since(t)) / 1000000,
+	}
 
 	if err != nil {
 		return
