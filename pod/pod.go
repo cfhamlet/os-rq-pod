@@ -375,13 +375,11 @@ func (pod *Pod) setStatus(status Status) {
 
 // ViewQueue TODO
 func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, err error) {
-	pod.RLock()
-	defer pod.RUnlock()
-	if !workStatus(pod.status) {
-		err = UnavailableError(pod.status)
-		return
-	}
-	return pod.queueBox.ViewQueue(qid, start, end)
+	return pod.withRLockOnWorkStatus(
+		func() (Result, error) {
+			return pod.queueBox.ViewQueue(qid, start, end)
+		},
+	)
 }
 
 // ViewQueues TODO
@@ -397,6 +395,9 @@ func (pod *Pod) ViewQueues(k int, start int, status QueueStatus) (result Result,
 func (pod *Pod) Queues(k int) (result Result, err error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
+			if pod.status == Paused {
+				return nil, UnavailableError(pod.status)
+			}
 			return pod.queueBox.Queues(k), nil
 		},
 	)
