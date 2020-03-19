@@ -19,23 +19,26 @@ type QueueStatus string
 
 // QueueStatus enum
 const (
-	QueueUnsync  QueueStatus = "unsync"
+	QueueInit    QueueStatus = "init"
 	QueueWorking QueueStatus = "working"
 	QueuePaused  QueueStatus = "paused"
+	QueueRemoved QueueStatus = "removed"
 )
 
 // QueueStatusMap TODO
 var QueueStatusMap = map[string]QueueStatus{
-	string(QueueUnsync):  QueueUnsync,
+	string(QueueInit):    QueueInit,
 	string(QueueWorking): QueueWorking,
 	string(QueuePaused):  QueuePaused,
+	string(QueueRemoved): QueueRemoved,
 }
 
 // QueueStatusList TODO
 var QueueStatusList = []QueueStatus{
-	QueueUnsync,
+	QueueInit,
 	QueueWorking,
 	QueuePaused,
+	QueueRemoved,
 }
 
 // QueueID TODO
@@ -290,40 +293,13 @@ func (queue *Queue) Info() (result Result, err error) {
 	return
 }
 
-// Status TODO
-func (queue *Queue) Status() QueueStatus {
-	queue.locker.RLock()
-	defer queue.locker.RUnlock()
-	return queue.status
-}
-
-// SetStatus TODO
-func (queue *Queue) SetStatus(status QueueStatus) (result Result, err error) {
-	queue.locker.Lock()
-	defer queue.locker.Unlock()
-
-	if status == queue.status {
-		result = queue.metaInfo()
-	} else {
-		oldStatus := queue.status
-		queue.status = status
-		result, err = queue.sync()
-		if err != nil {
-			queue.status = oldStatus
-			result["status"] = oldStatus
-		}
-	}
-
-	return
-}
-
 // Idle TODO
 func (queue *Queue) Idle() bool {
 	queue.locker.Lock()
 	defer queue.locker.Unlock()
 	return queue.qsize <= 0 &&
 		(queue.status == QueueWorking ||
-			queue.status == QueueUnsync) &&
+			queue.status == QueueInit) &&
 		queue.queuing <= 0
 }
 
@@ -355,5 +331,46 @@ func (queue *Queue) Clear() (result Result, err error) {
 		queue.qsize = 0
 	}
 
+	return
+}
+
+// SetStatus TODO
+func (queue *Queue) SetStatus(status QueueStatus) (err error) {
+	queue.locker.Lock()
+	defer queue.locker.Unlock()
+
+	if queue.status == status {
+		return
+	}
+	e := UnavailableError(queue.status)
+	switch queue.status {
+	case QueueInit:
+	case QueuePaused:
+		switch status {
+		case QueueInit:
+			err = e
+		}
+	case QueueWorking:
+		switch status {
+		case QueueInit:
+			err = e
+		}
+	case QueueRemoved:
+		err = e
+	}
+	if err != nil {
+		return
+	}
+	box := queue.pod.queueBox
+	if queue.status == QueueInit && status != QueueRemoved {
+		box.queues[queue.ID] = queue
+	}
+	box.statusQueueIDs[queue.status].Delete(queue.ID)
+	if status != QueueRemoved {
+		box.statusQueueIDs[status].Add(queue.ID)
+	} else {
+		delete(box.queues, queue.ID)
+	}
+	queue.status = status
 	return
 }

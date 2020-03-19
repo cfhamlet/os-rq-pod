@@ -3,14 +3,12 @@ package pod
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/go-redis/redis/v7"
-	"github.com/prep/average"
 	"github.com/shirou/gopsutil/process"
 	"github.com/spf13/viper"
 )
@@ -20,73 +18,16 @@ type Status string
 
 // Status enum
 const (
+	Init      Status = "init"
+	Preparing Status = "preparing"
 	Working   Status = "working"
 	Paused    Status = "paused"
-	Preparing Status = "preparing"
 	Stopping  Status = "stopping"
 	Stopped   Status = "stopped"
 )
 
 // Result TODO
 type Result map[string]interface{}
-
-// Stats TODO
-type Stats struct {
-	requestNum      int64
-	requestInputWS  *average.SlidingWindow
-	requestOutputWS *average.SlidingWindow
-}
-
-// WindowTotal TODO
-func WindowTotal(window *average.SlidingWindow, second time.Duration) int64 {
-	t, _ := window.Total(second * time.Second)
-	return t
-}
-
-// Stats TODO
-func (stats *Stats) Stats() Result {
-	result := Result{}
-	result["request_num"] = stats.RequestNum()
-	result["request_input_5s"] = WindowTotal(stats.requestInputWS, 5)
-	result["request_output_5s"] = WindowTotal(stats.requestOutputWS, 5)
-	return result
-}
-
-// IncrRequestNum TODO
-func (stats *Stats) IncrRequestNum(d int64) int64 {
-	return atomic.AddInt64(&(stats.requestNum), d)
-}
-
-// RequestNum TODO
-func (stats *Stats) RequestNum() int64 {
-	return atomic.LoadInt64(&(stats.requestNum))
-}
-
-// UpdateInput TODO
-func (stats *Stats) UpdateInput(d int64) {
-	stats.IncrRequestNum(d)
-	stats.requestInputWS.Add(d)
-}
-
-// UpdateOutput TODO
-func (stats *Stats) UpdateOutput(d int64) {
-	stats.IncrRequestNum(0 - d)
-	stats.requestOutputWS.Add(d)
-}
-
-// MustNewMinuteWindow TODO
-func MustNewMinuteWindow() *average.SlidingWindow {
-	return average.MustNew(time.Minute, time.Second)
-}
-
-// NewStats TODO
-func NewStats() *Stats {
-	return &Stats{
-		0,
-		MustNewMinuteWindow(),
-		MustNewMinuteWindow(),
-	}
-}
 
 // Pod TODO
 type Pod struct {
@@ -115,7 +56,7 @@ func NewPod(conf *viper.Viper, client *redis.Client) (pod *Pod) {
 		conf,
 		nil,
 		stats,
-		Stopped,
+		Init,
 		&sync.RWMutex{},
 		nil,
 	}
@@ -139,16 +80,17 @@ func workStatus(status Status) bool {
 // OnStart TODO
 func (pod *Pod) OnStart() (err error) {
 	pod.Lock()
-	if pod.status != Stopped {
-		pod.Unlock()
-		return UnavailableError(pod.status)
-	}
-	pod.setStatus(Preparing)
+	err = pod.setStatus(Preparing)
 	pod.Unlock()
+	if err != nil {
+		return
+	}
 
 	err = pod.queueBox.LoadQueues()
 	if err == nil {
-		err = pod.start()
+		pod.Lock()
+		err = pod.setStatus(Working)
+		pod.Unlock()
 	}
 	switch err.(type) {
 	case UnavailableError:
@@ -164,9 +106,10 @@ func (pod *Pod) OnStart() (err error) {
 func (pod *Pod) OnStop() (err error) {
 	pod.Lock()
 	defer pod.Unlock()
-	pod.setStatus(Stopping)
-	// TODO
-	pod.setStatus(Stopped)
+	err = pod.setStatus(Stopping)
+	if err == nil {
+		err = pod.setStatus(Stopped)
+	}
 	return
 }
 
@@ -214,11 +157,12 @@ func (pod *Pod) Info() (result Result, err error) {
 }
 
 // GetRequest TODO
-func (pod *Pod) GetRequest(qid QueueID) (result Result, err error) {
+func (pod *Pod) GetRequest(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
-		func() (Result, error) {
+		func() (result Result, err error) {
 			if pod.status != Working {
-				return nil, UnavailableError(pod.status)
+				err = UnavailableError(pod.status)
+				return
 			}
 			return pod.queueBox.GetRequest(qid)
 		},
@@ -226,7 +170,7 @@ func (pod *Pod) GetRequest(qid QueueID) (result Result, err error) {
 }
 
 // AddRequest TODO
-func (pod *Pod) AddRequest(rawReq *request.RawRequest) (result Result, err error) {
+func (pod *Pod) AddRequest(rawReq *request.RawRequest) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (result Result, err error) {
 			if pod.status != Working {
@@ -264,16 +208,16 @@ func (pod *Pod) withLockRLockOnWorkStatus(f func() (Result, error), lock bool) (
 	return f()
 }
 
-func (pod *Pod) withRLockOnWorkStatus(f func() (Result, error)) (result Result, err error) {
+func (pod *Pod) withRLockOnWorkStatus(f func() (Result, error)) (Result, error) {
 	return pod.withLockRLockOnWorkStatus(f, false)
 }
 
-func (pod *Pod) withLockOnWorkStatus(f func() (Result, error)) (result Result, err error) {
+func (pod *Pod) withLockOnWorkStatus(f func() (Result, error)) (Result, error) {
 	return pod.withLockRLockOnWorkStatus(f, true)
 }
 
 // PauseQueue TODO
-func (pod *Pod) PauseQueue(qid QueueID) (result Result, err error) {
+func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
 			return pod.queueBox.UpdateQueueStatus(qid, QueuePaused)
@@ -282,7 +226,7 @@ func (pod *Pod) PauseQueue(qid QueueID) (result Result, err error) {
 }
 
 // ResumeQueue TODO
-func (pod *Pod) ResumeQueue(qid QueueID) (result Result, err error) {
+func (pod *Pod) ResumeQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
 			return pod.queueBox.UpdateQueueStatus(qid, QueueWorking)
@@ -309,7 +253,7 @@ func (pod *Pod) ClearQueue(qid QueueID) (Result, error) {
 }
 
 // ForceSyncQueue TODO
-func (pod *Pod) ForceSyncQueue(qid QueueID) (result Result, err error) {
+func (pod *Pod) ForceSyncQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
 			return pod.queueBox.SyncQueue(qid, true)
@@ -318,7 +262,7 @@ func (pod *Pod) ForceSyncQueue(qid QueueID) (result Result, err error) {
 }
 
 // SyncQueue TODO
-func (pod *Pod) SyncQueue(qid QueueID) (result Result, err error) {
+func (pod *Pod) SyncQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
 			return pod.queueBox.SyncQueue(qid, false)
@@ -327,7 +271,7 @@ func (pod *Pod) SyncQueue(qid QueueID) (result Result, err error) {
 }
 
 // QueueInfo TODO
-func (pod *Pod) QueueInfo(qid QueueID) (result Result, err error) {
+func (pod *Pod) QueueInfo(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
 			return pod.queueBox.QueueInfo(qid)
@@ -335,46 +279,30 @@ func (pod *Pod) QueueInfo(qid QueueID) (result Result, err error) {
 	)
 }
 
-func (pod *Pod) start() (err error) {
-	if stopStatus(pod.status) {
-		err = UnavailableError(pod.status)
-	} else if pod.status == Working {
-	} else {
-		pod.setStatus(Working)
-	}
-	return
-}
-
 // Pause TODO
-func (pod *Pod) Pause() (result Result, err error) {
+func (pod *Pod) Pause() (Result, error) {
 	return pod.withLockOnWorkStatus(
-		func() (Result, error) {
-			if pod.status == Working {
-				pod.setStatus(Paused)
-			}
-			return pod.metaInfo(), nil
+		func() (result Result, err error) {
+			err = pod.setStatus(Paused)
+			result = pod.metaInfo()
+			return
 		},
 	)
 }
 
 // Resume TODO
-func (pod *Pod) Resume() (result Result, err error) {
+func (pod *Pod) Resume() (Result, error) {
 	return pod.withLockOnWorkStatus(
-		func() (Result, error) {
-			if pod.status == Paused {
-				pod.setStatus(Working)
-			}
-			return pod.metaInfo(), nil
+		func() (result Result, err error) {
+			err = pod.setStatus(Working)
+			result = pod.metaInfo()
+			return
 		},
 	)
 }
 
-func (pod *Pod) setStatus(status Status) {
-	pod.status = status
-}
-
 // ViewQueue TODO
-func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, err error) {
+func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
 			return pod.queueBox.ViewQueue(qid, start, end)
@@ -383,22 +311,76 @@ func (pod *Pod) ViewQueue(qid QueueID, start int64, end int64) (result Result, e
 }
 
 // ViewQueues TODO
-func (pod *Pod) ViewQueues(k int, start int, status QueueStatus) (result Result, err error) {
+func (pod *Pod) ViewQueues(k int, start int, status QueueStatus) (Result, error) {
 	return pod.withRLockOnWorkStatus(
-		func() (Result, error) {
-			return pod.queueBox.ViewQueues(k, start, status), nil
+		func() (result Result, err error) {
+			result = pod.queueBox.ViewQueues(k, start, status)
+			return
 		},
 	)
 }
 
 // Queues TODO
-func (pod *Pod) Queues(k int) (result Result, err error) {
+func (pod *Pod) Queues(k int) (Result, error) {
 	return pod.withRLockOnWorkStatus(
-		func() (Result, error) {
-			if pod.status == Paused {
-				return nil, UnavailableError(pod.status)
+		func() (result Result, err error) {
+			if pod.status != Working {
+				err = UnavailableError(pod.status)
+			} else {
+				result = pod.queueBox.Queues(k)
 			}
-			return pod.queueBox.Queues(k), nil
+			return
 		},
 	)
+}
+
+func (pod *Pod) setStatus(status Status) (err error) {
+	if pod.status == status {
+		return
+	}
+	e := UnavailableError(pod.status)
+	switch pod.status {
+	case Init:
+		switch status {
+		case Preparing:
+		default:
+			err = e
+		}
+	case Preparing:
+		switch status {
+		case Working:
+			fallthrough
+		case Paused:
+		default:
+			err = e
+		}
+	case Working:
+		switch status {
+		case Paused:
+			fallthrough
+		case Stopping:
+		default:
+			err = e
+		}
+	case Paused:
+		switch status {
+		case Working:
+			fallthrough
+		case Stopping:
+		default:
+			err = e
+		}
+	case Stopping:
+		switch status {
+		case Stopped:
+		default:
+			err = e
+		}
+	case Stopped:
+		err = e
+	}
+	if err == nil {
+		pod.status = status
+	}
+	return
 }
