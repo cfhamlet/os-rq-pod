@@ -10,7 +10,6 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/runner"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	core "github.com/cfhamlet/os-rq-pod/pod"
-	"github.com/gin-gonic/gin"
 
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
@@ -26,10 +25,6 @@ func run(conf *viper.Viper) {
 		return conf, err
 	}
 
-	newEngine := func(*core.Pod) *gin.Engine {
-		return ginserv.NewEngine(conf)
-	}
-
 	podLifecycle := func(lc fx.Lifecycle, pod *core.Pod) runner.Ready {
 		return runner.ServeFlowLifecycle(lc, pod)
 	}
@@ -41,7 +36,7 @@ func run(conf *viper.Viper) {
 			newConfig,
 			utils.NewRedisClient,
 			core.NewPod,
-			newEngine,
+			ginserv.NewEngine,
 			ginserv.NewServer,
 			ginserv.NewAPIGroup,
 			podLifecycle,
