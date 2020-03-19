@@ -42,7 +42,7 @@ func (box *QueueBox) loadQueues(keys []string) (err error) {
 		if e != nil {
 			log.Logger.Warning("invalid key", key, e)
 		} else {
-			_, err = box.addQueue(qid)
+			_, err = box.addQueue(qid, QueueWorking)
 			if err != nil {
 				break
 			}
@@ -103,7 +103,7 @@ func (box *QueueBox) SyncQueue(qid QueueID, force bool) (result Result, err erro
 	queue, ok := box.queues[qid]
 	if !ok {
 		if force {
-			queue, err = box.addQueue(qid)
+			queue, err = box.addQueue(qid, QueueUndefined)
 		} else {
 			err = QueueNotExist
 			box.RUnlock()
@@ -130,7 +130,7 @@ func (box *QueueBox) AddRequest(qid QueueID, req *request.Request) (result Resul
 	box.RLock()
 	queue, ok := box.queues[qid]
 	if !ok {
-		queue, err = box.addQueue(qid)
+		queue, err = box.addQueue(qid, QueueWorking)
 	}
 
 	if err == nil {
@@ -170,7 +170,7 @@ func (box *QueueBox) GetRequest(qid QueueID) (result Result, err error) {
 	return
 }
 
-func (box *QueueBox) addQueue(qid QueueID) (queue *Queue, err error) {
+func (box *QueueBox) addQueue(qid QueueID, status QueueStatus) (queue *Queue, err error) {
 	box.cLocker.Lock()
 	defer box.cLocker.Unlock()
 
@@ -180,13 +180,13 @@ func (box *QueueBox) addQueue(qid QueueID) (queue *Queue, err error) {
 	}
 
 	queue = NewQueue(box.pod, qid, QueueUndefined)
-	_, err = queue.SetStatus(QueueWorking)
+	_, err = queue.SetStatus(status)
 	if err != nil {
 		queue = nil
 		return
 	}
 	box.queues[qid] = queue
-	box.statusQueueIDs[QueueWorking].Add(qid)
+	box.statusQueueIDs[status].Add(qid)
 	return
 }
 
@@ -207,7 +207,7 @@ func (box *QueueBox) DeleteQueue(qid QueueID) (result Result, err error) {
 	return box.withLock(qid,
 		func(queue *Queue) (Result, error) {
 			result, err = queue.Clear()
-			if err != nil {
+			if err == nil {
 				_ = box.deleteQueue(qid)
 			}
 			return result, err
