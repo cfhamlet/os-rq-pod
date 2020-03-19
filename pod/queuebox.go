@@ -191,7 +191,7 @@ func (box *QueueBox) addQueue(qid QueueID, status QueueStatus) (queue *Queue, er
 }
 
 func (box *QueueBox) deleteQueue(qid QueueID) (err error) {
-	_, err = box.withExist(qid,
+	_, err = box.mustExist(qid,
 		func(queue *Queue) (Result, error) {
 			status := queue.Status()
 			delete(box.queues, qid)
@@ -221,16 +221,16 @@ type CallByQueue func(*Queue) (Result, error)
 func (box *QueueBox) withRLock(qid QueueID, f CallByQueue) (result Result, err error) {
 	box.RLock()
 	defer box.RUnlock()
-	return box.withExist(qid, f)
+	return box.mustExist(qid, f)
 }
 
 func (box *QueueBox) withLock(qid QueueID, f CallByQueue) (result Result, err error) {
 	box.Lock()
 	defer box.Unlock()
-	return box.withExist(qid, f)
+	return box.mustExist(qid, f)
 }
 
-func (box *QueueBox) withExist(qid QueueID, f CallByQueue) (Result, error) {
+func (box *QueueBox) mustExist(qid QueueID, f CallByQueue) (Result, error) {
 	queue, ok := box.queues[qid]
 	if !ok {
 		return nil, QueueNotExist
