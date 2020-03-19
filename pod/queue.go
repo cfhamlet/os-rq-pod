@@ -19,21 +19,21 @@ type QueueStatus string
 
 // QueueStatus enum
 const (
-	QueueUndefined QueueStatus = "undefined"
-	QueueWorking   QueueStatus = "working"
-	QueuePaused    QueueStatus = "paused"
+	QueueUnsync  QueueStatus = "unsync"
+	QueueWorking QueueStatus = "working"
+	QueuePaused  QueueStatus = "paused"
 )
 
 // QueueStatusMap TODO
 var QueueStatusMap = map[string]QueueStatus{
-	string(QueueUndefined): QueueUndefined,
-	string(QueueWorking):   QueueWorking,
-	string(QueuePaused):    QueuePaused,
+	string(QueueUnsync):  QueueUnsync,
+	string(QueueWorking): QueueWorking,
+	string(QueuePaused):  QueuePaused,
 }
 
 // QueueStatusList TODO
 var QueueStatusList = []QueueStatus{
-	QueueUndefined,
+	QueueUnsync,
 	QueueWorking,
 	QueuePaused,
 }
@@ -323,7 +323,7 @@ func (queue *Queue) Idle() bool {
 	defer queue.locker.Unlock()
 	return queue.qsize <= 0 &&
 		(queue.status == QueueWorking ||
-			queue.status == QueueUndefined) &&
+			queue.status == QueueUnsync) &&
 		queue.queuing <= 0
 }
 
