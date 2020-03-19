@@ -261,9 +261,14 @@ func (pod *Pod) AddRequest(rawReq *request.RawRequest) (result Result, err error
 	return pod.queueBox.AddRequest(qid, req)
 }
 
-func (pod *Pod) withRLockOnWorkStatus(f func() (Result, error)) (result Result, err error) {
-	pod.RLock()
-	defer pod.RUnlock()
+func (pod *Pod) withLockRLockOnWorkStatus(f func() (Result, error), lock bool) (result Result, err error) {
+	if lock {
+		pod.Lock()
+		defer pod.Unlock()
+	} else {
+		pod.RLock()
+		defer pod.RUnlock()
+	}
 	if !workStatus(pod.status) {
 		err = UnavailableError(pod.status)
 		return
@@ -271,14 +276,12 @@ func (pod *Pod) withRLockOnWorkStatus(f func() (Result, error)) (result Result, 
 	return f()
 }
 
+func (pod *Pod) withRLockOnWorkStatus(f func() (Result, error)) (result Result, err error) {
+	return pod.withLockRLockOnWorkStatus(f, false)
+}
+
 func (pod *Pod) withLockOnWorkStatus(f func() (Result, error)) (result Result, err error) {
-	pod.Lock()
-	defer pod.Unlock()
-	if !workStatus(pod.status) {
-		err = UnavailableError(pod.status)
-		return
-	}
-	return f()
+	return pod.withLockRLockOnWorkStatus(f, true)
 }
 
 // PauseQueue TODO

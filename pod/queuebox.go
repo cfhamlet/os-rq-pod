@@ -208,17 +208,9 @@ func (box *QueueBox) DeleteQueue(qid QueueID) (result Result, err error) {
 		func(queue *Queue) (Result, error) {
 			result, err = queue.Clear()
 			if err != nil {
-				box.deleteQueue(qid)
+				_ = box.deleteQueue(qid)
 			}
 			return result, err
-		},
-	)
-}
-
-func (box *QueueBox) clearQueue(qid QueueID) (result Result, err error) {
-	return box.withExist(qid,
-		func(queue *Queue) (Result, error) {
-			return queue.Clear()
 		},
 	)
 }
