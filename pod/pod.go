@@ -16,8 +16,8 @@ import (
 // Status type
 type Status string
 
-// ReturnResultAndError TODO
-type ReturnResultAndError func() (Result, error)
+// ResultAndErrorFunc TODO
+type ResultAndErrorFunc func() (Result, error)
 
 // Status enum
 const (
@@ -192,7 +192,7 @@ func (pod *Pod) AddRequest(rawReq *request.RawRequest) (Result, error) {
 	)
 }
 
-func (pod *Pod) withLockRLockOnWorkStatus(f ReturnResultAndError, lock bool) (result Result, err error) {
+func (pod *Pod) withLockRLockOnWorkStatus(f ResultAndErrorFunc, lock bool) (result Result, err error) {
 	if lock {
 		pod.Lock()
 		defer pod.Unlock()
@@ -207,11 +207,11 @@ func (pod *Pod) withLockRLockOnWorkStatus(f ReturnResultAndError, lock bool) (re
 	return f()
 }
 
-func (pod *Pod) withRLockOnWorkStatus(f ReturnResultAndError) (Result, error) {
+func (pod *Pod) withRLockOnWorkStatus(f ResultAndErrorFunc) (Result, error) {
 	return pod.withLockRLockOnWorkStatus(f, false)
 }
 
-func (pod *Pod) withLockOnWorkStatus(f ReturnResultAndError) (Result, error) {
+func (pod *Pod) withLockOnWorkStatus(f ResultAndErrorFunc) (Result, error) {
 	return pod.withLockRLockOnWorkStatus(f, true)
 }
 
