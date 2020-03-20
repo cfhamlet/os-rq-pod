@@ -219,7 +219,7 @@ func (pod *Pod) withLockOnWorkStatus(f ReturnResultAndError) (Result, error) {
 func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
-			return pod.queueBox.SetQueueStatus(qid, QueuePaused)
+			return pod.queueBox.SetStatus(qid, QueuePaused)
 		},
 	)
 }
@@ -228,7 +228,7 @@ func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 func (pod *Pod) ResumeQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
-			return pod.queueBox.SetQueueStatus(qid, QueueWorking)
+			return pod.queueBox.SetStatus(qid, QueueWorking)
 		},
 	)
 }

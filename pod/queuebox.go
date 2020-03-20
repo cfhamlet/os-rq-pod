@@ -246,8 +246,8 @@ func (box *QueueBox) ClearQueue(qid QueueID) (Result, error) {
 	)
 }
 
-// SetQueueStatus TODO
-func (box *QueueBox) SetQueueStatus(qid QueueID, status QueueStatus) (Result, error) {
+// SetStatus TODO
+func (box *QueueBox) SetStatus(qid QueueID, status QueueStatus) (Result, error) {
 	return box.withLock(qid,
 		func(queue *Queue) (result Result, err error) {
 			err = queue.SetStatus(status)
