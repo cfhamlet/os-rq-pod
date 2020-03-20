@@ -280,7 +280,9 @@ func (pod *Pod) Pause() (Result, error) {
 	return pod.withLockOnWorkStatus(
 		func() (result Result, err error) {
 			err = pod.setStatus(Paused)
-			result = pod.metaInfo()
+			if err == nil {
+				result = pod.metaInfo()
+			}
 			return
 		},
 	)
@@ -291,7 +293,9 @@ func (pod *Pod) Resume() (Result, error) {
 	return pod.withLockOnWorkStatus(
 		func() (result Result, err error) {
 			err = pod.setStatus(Working)
-			result = pod.metaInfo()
+			if err == nil {
+				result = pod.metaInfo()
+			}
 			return
 		},
 	)
