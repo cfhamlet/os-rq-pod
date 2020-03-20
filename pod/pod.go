@@ -142,17 +142,17 @@ func (pod *Pod) Info() (result Result, err error) {
 	result = pod.metaInfo()
 	t := time.Now()
 	memoryInfo, err := pod.Client.Info("memory").Result()
+	r := Result{"cost_ms": float64(time.Since(t)) / 1000000}
 
 	if err == nil {
-		r := Result{"cost_ms": float64(time.Since(t)) / 1000000}
 		k, v := utils.ParseRedisInfo(memoryInfo, "used_memory_rss")
 		if k != "" {
 			r[k] = v
 		}
-		result["redis"] = r
 	} else {
 		err = fmt.Errorf("redis error %w", err)
 	}
+	result["redis"] = r
 
 	return
 }
