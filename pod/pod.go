@@ -16,6 +16,9 @@ import (
 // Status type
 type Status string
 
+// ReturnResultAndError TODO
+type ReturnResultAndError func() (Result, error)
+
 // Status enum
 const (
 	Init      Status = "init"
@@ -87,10 +90,11 @@ func (pod *Pod) OnStart() (err error) {
 	}
 
 	err = pod.queueBox.LoadQueues()
+	pod.Lock()
+	defer pod.Unlock()
+
 	if err == nil {
-		pod.Lock()
 		err = pod.setStatus(Working)
-		pod.Unlock()
 	}
 	switch err.(type) {
 	case UnavailableError:
@@ -128,11 +132,6 @@ func (pod *Pod) metaInfo() (result Result) {
 	}
 }
 
-// Conf TODO
-func (pod *Pod) Conf() *viper.Viper {
-	return pod.conf
-}
-
 // Info TODO
 func (pod *Pod) Info() (result Result, err error) {
 	pod.RLock()
@@ -141,17 +140,17 @@ func (pod *Pod) Info() (result Result, err error) {
 	result = pod.metaInfo()
 	t := time.Now()
 	memoryInfo, err := pod.Client.Info("memory").Result()
+	r := Result{"cost_ms": float64(time.Since(t)) / 1000000}
 
 	if err == nil {
-		r := Result{"cost_ms": float64(time.Since(t)) / 1000000}
 		k, v := utils.ParseRedisInfo(memoryInfo, "used_memory_rss")
 		if k != "" {
 			r[k] = v
 		}
-		result["redis"] = r
 	} else {
 		err = fmt.Errorf("redis error %w", err)
 	}
+	result["redis"] = r
 
 	return
 }
@@ -193,7 +192,7 @@ func (pod *Pod) AddRequest(rawReq *request.RawRequest) (Result, error) {
 	)
 }
 
-func (pod *Pod) withLockRLockOnWorkStatus(f func() (Result, error), lock bool) (result Result, err error) {
+func (pod *Pod) withLockRLockOnWorkStatus(f ReturnResultAndError, lock bool) (result Result, err error) {
 	if lock {
 		pod.Lock()
 		defer pod.Unlock()
@@ -208,11 +207,11 @@ func (pod *Pod) withLockRLockOnWorkStatus(f func() (Result, error), lock bool) (
 	return f()
 }
 
-func (pod *Pod) withRLockOnWorkStatus(f func() (Result, error)) (Result, error) {
+func (pod *Pod) withRLockOnWorkStatus(f ReturnResultAndError) (Result, error) {
 	return pod.withLockRLockOnWorkStatus(f, false)
 }
 
-func (pod *Pod) withLockOnWorkStatus(f func() (Result, error)) (Result, error) {
+func (pod *Pod) withLockOnWorkStatus(f ReturnResultAndError) (Result, error) {
 	return pod.withLockRLockOnWorkStatus(f, true)
 }
 
@@ -220,7 +219,7 @@ func (pod *Pod) withLockOnWorkStatus(f func() (Result, error)) (Result, error) {
 func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
-			return pod.queueBox.UpdateQueueStatus(qid, QueuePaused)
+			return pod.queueBox.SetQueueStatus(qid, QueuePaused)
 		},
 	)
 }
@@ -229,7 +228,7 @@ func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 func (pod *Pod) ResumeQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
-			return pod.queueBox.UpdateQueueStatus(qid, QueueWorking)
+			return pod.queueBox.SetQueueStatus(qid, QueueWorking)
 		},
 	)
 }
@@ -284,7 +283,9 @@ func (pod *Pod) Pause() (Result, error) {
 	return pod.withLockOnWorkStatus(
 		func() (result Result, err error) {
 			err = pod.setStatus(Paused)
-			result = pod.metaInfo()
+			if err == nil {
+				result = pod.metaInfo()
+			}
 			return
 		},
 	)
@@ -295,7 +296,9 @@ func (pod *Pod) Resume() (Result, error) {
 	return pod.withLockOnWorkStatus(
 		func() (result Result, err error) {
 			err = pod.setStatus(Working)
-			result = pod.metaInfo()
+			if err == nil {
+				result = pod.metaInfo()
+			}
 			return
 		},
 	)

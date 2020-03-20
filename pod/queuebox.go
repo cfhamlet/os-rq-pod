@@ -80,7 +80,29 @@ func (box *QueueBox) LoadQueues() (err error) {
 		len(box.queues), box.pod.stats.RequestNum())
 
 	return
+}
 
+// CallByQueue TODO
+type CallByQueue func(*Queue) (Result, error)
+
+func (box *QueueBox) withRLock(qid QueueID, f CallByQueue) (result Result, err error) {
+	box.RLock()
+	defer box.RUnlock()
+	return box.mustExist(qid, f)
+}
+
+func (box *QueueBox) withLock(qid QueueID, f CallByQueue) (result Result, err error) {
+	box.Lock()
+	defer box.Unlock()
+	return box.mustExist(qid, f)
+}
+
+func (box *QueueBox) mustExist(qid QueueID, f CallByQueue) (Result, error) {
+	queue, ok := box.queues[qid]
+	if !ok {
+		return nil, QueueNotExist
+	}
+	return f(queue)
 }
 
 // DeleteIdleQueue TODO
@@ -133,18 +155,19 @@ func (box *QueueBox) AddRequest(qid QueueID, req *request.Request) (result Resul
 		queue, err = box.addQueue(qid, QueueWorking)
 	}
 
-	if err == nil {
-		result, err = queue.Put(req)
+	if err != nil {
 		box.RUnlock()
-		if err != nil {
-			switch err.(type) {
-			case UnavailableError:
-			default:
-				_ = box.DeleteIdleQueue(qid)
-			}
+		return
+	}
+
+	result, err = queue.Put(req)
+	box.RUnlock()
+	if err != nil {
+		switch err.(type) {
+		case UnavailableError:
+		default:
+			_ = box.DeleteIdleQueue(qid)
 		}
-	} else {
-		box.RUnlock()
 	}
 	return
 }
@@ -153,19 +176,21 @@ func (box *QueueBox) AddRequest(qid QueueID, req *request.Request) (result Resul
 func (box *QueueBox) GetRequest(qid QueueID) (result Result, err error) {
 	box.RLock()
 	queue, ok := box.queues[qid]
-	if ok {
-		var qsize int64
-		result, qsize, err = queue.Get()
-		box.RUnlock()
-		if (err == nil && qsize <= 0) || err == redis.Nil {
-			_, _ = box.SyncQueue(qid, false)
-			if err == redis.Nil {
-				err = QueueNotExist
-			}
-		}
-	} else {
-		box.RUnlock()
+
+	if !ok {
 		err = QueueNotExist
+		box.RUnlock()
+		return
+	}
+
+	var qsize int64
+	result, qsize, err = queue.Get()
+	box.RUnlock()
+	if (err == nil && qsize <= 0) || err == redis.Nil {
+		_, _ = box.SyncQueue(qid, false)
+		if err == redis.Nil {
+			err = QueueNotExist
+		}
 	}
 	return
 }
@@ -186,7 +211,6 @@ func (box *QueueBox) addQueue(qid QueueID, status QueueStatus) (queue *Queue, er
 	if err != nil {
 		_ = queue.SetStatus(QueueRemoved)
 		queue = nil
-		return
 	}
 	return
 }
@@ -202,29 +226,6 @@ func (box *QueueBox) DeleteQueue(qid QueueID) (Result, error) {
 			return
 		},
 	)
-}
-
-// CallByQueue TODO
-type CallByQueue func(*Queue) (Result, error)
-
-func (box *QueueBox) withRLock(qid QueueID, f CallByQueue) (result Result, err error) {
-	box.RLock()
-	defer box.RUnlock()
-	return box.mustExist(qid, f)
-}
-
-func (box *QueueBox) withLock(qid QueueID, f CallByQueue) (result Result, err error) {
-	box.Lock()
-	defer box.Unlock()
-	return box.mustExist(qid, f)
-}
-
-func (box *QueueBox) mustExist(qid QueueID, f CallByQueue) (Result, error) {
-	queue, ok := box.queues[qid]
-	if !ok {
-		return nil, QueueNotExist
-	}
-	return f(queue)
 }
 
 // ViewQueue TODO
@@ -245,8 +246,8 @@ func (box *QueueBox) ClearQueue(qid QueueID) (Result, error) {
 	)
 }
 
-// UpdateQueueStatus TODO
-func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (Result, error) {
+// SetQueueStatus TODO
+func (box *QueueBox) SetQueueStatus(qid QueueID, status QueueStatus) (Result, error) {
 	return box.withLock(qid,
 		func(queue *Queue) (result Result, err error) {
 			err = queue.SetStatus(status)
@@ -256,27 +257,6 @@ func (box *QueueBox) UpdateQueueStatus(qid QueueID, status QueueStatus) (Result,
 			return
 		},
 	)
-}
-
-// QueuesNum TODO
-func (box *QueueBox) QueuesNum(status QueueStatus) int {
-	box.Lock()
-	defer box.Unlock()
-	if status == QueueInit {
-		return len(box.queues)
-	}
-	return box.statusQueueIDs[status].Size()
-}
-
-// Info TODO
-func (box *QueueBox) Info() (result Result) {
-	box.Lock()
-	defer box.Unlock()
-	result = Result{}
-	for k, v := range box.statusQueueIDs {
-		result[string(k)] = v.Size()
-	}
-	return
 }
 
 // QueueInfo TODO
@@ -346,4 +326,25 @@ func (box *QueueBox) Queues(k int) Result {
 		"queues": out,
 		"total":  l,
 	}
+}
+
+// QueuesNum TODO
+func (box *QueueBox) QueuesNum(status QueueStatus) int {
+	box.Lock()
+	defer box.Unlock()
+	if status == QueueInit {
+		return len(box.queues)
+	}
+	return box.statusQueueIDs[status].Size()
+}
+
+// Info TODO
+func (box *QueueBox) Info() (result Result) {
+	box.Lock()
+	defer box.Unlock()
+	result = Result{}
+	for k, v := range box.statusQueueIDs {
+		result[string(k)] = v.Size()
+	}
+	return
 }
