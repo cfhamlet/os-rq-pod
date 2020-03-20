@@ -6,14 +6,8 @@ import "fmt"
 type QueueNotExistError string
 
 func (e QueueNotExistError) Error() string {
-	if e != "" {
-		return "not exist " + string(e)
-	}
-	return "not exist"
+	return fmt.Sprintf("not exist %s", string(e))
 }
-
-// QueueNotExist TODO
-const QueueNotExist = QueueNotExistError("")
 
 // UnavailableError TODO
 type UnavailableError string
