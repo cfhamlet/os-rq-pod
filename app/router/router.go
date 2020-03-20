@@ -23,7 +23,7 @@ func InitAPIRouter(g ginserv.RouterGroup, pod *core.Pod) {
 		{g.POST, "/queue/sync/", controller.SyncQueue},
 		{g.DELETE, "/queue/", controller.DeleteQueue},
 
-		{g.GET, "/queues/", controller.Queues},
+		{g.POST, "/queues/", controller.Queues},
 		{g.GET, "/queues/view/", controller.ViewQueues},
 
 		{g.POST, "/request/push/", controller.AddRequest},
