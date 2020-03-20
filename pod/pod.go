@@ -87,10 +87,11 @@ func (pod *Pod) OnStart() (err error) {
 	}
 
 	err = pod.queueBox.LoadQueues()
+	pod.Lock()
+	defer pod.Unlock()
+
 	if err == nil {
-		pod.Lock()
 		err = pod.setStatus(Working)
-		pod.Unlock()
 	}
 	switch err.(type) {
 	case UnavailableError:
@@ -220,7 +221,7 @@ func (pod *Pod) withLockOnWorkStatus(f func() (Result, error)) (Result, error) {
 func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
-			return pod.queueBox.UpdateQueueStatus(qid, QueuePaused)
+			return pod.queueBox.SetQueueStatus(qid, QueuePaused)
 		},
 	)
 }
@@ -229,7 +230,7 @@ func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 func (pod *Pod) ResumeQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
-			return pod.queueBox.UpdateQueueStatus(qid, QueueWorking)
+			return pod.queueBox.SetQueueStatus(qid, QueueWorking)
 		},
 	)
 }

@@ -277,11 +277,16 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 	defer queue.locker.Unlock()
 
 	result, err = queue.sync()
-	if err == nil {
-		var requests []string
-		requests, err = queue.pod.Client.LRange(queue.redisKey, start, end).Result()
-		result["requests"] = requests
+	if err != nil {
+		return
 	}
+	var requests []string
+	t := time.Now()
+	requests, err = queue.pod.Client.LRange(queue.redisKey, start, end).Result()
+	result["redis"] = Result{
+		"cost_ms": float64(time.Since(t)) / 1000000,
+	}
+	result["requests"] = requests
 	return
 }
 
