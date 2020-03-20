@@ -291,11 +291,10 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 }
 
 // Info TODO
-func (queue *Queue) Info() (result Result, err error) {
+func (queue *Queue) Info() Result {
 	queue.locker.Lock()
 	defer queue.locker.Unlock()
-	result = queue.metaInfo()
-	return
+	return queue.metaInfo()
 }
 
 // Idle TODO

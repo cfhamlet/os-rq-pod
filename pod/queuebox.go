@@ -252,7 +252,7 @@ func (box *QueueBox) SetStatus(qid QueueID, status QueueStatus) (Result, error) 
 		func(queue *Queue) (result Result, err error) {
 			err = queue.SetStatus(status)
 			if err == nil {
-				result, err = queue.Info()
+				result = queue.Info()
 			}
 			return
 		},
@@ -260,10 +260,11 @@ func (box *QueueBox) SetStatus(qid QueueID, status QueueStatus) (Result, error) 
 }
 
 // QueueInfo TODO
-func (box *QueueBox) QueueInfo(qid QueueID) (result Result, err error) {
+func (box *QueueBox) QueueInfo(qid QueueID) (Result, error) {
 	return box.withRLock(qid,
-		func(queue *Queue) (Result, error) {
-			return queue.Info()
+		func(queue *Queue) (result Result, err error) {
+			result = queue.Info()
+			return
 		},
 	)
 }
