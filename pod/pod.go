@@ -129,10 +129,10 @@ func (pod *Pod) metaInfo() (result Result) {
 	}
 }
 
-// Conf TODO
-func (pod *Pod) Conf() *viper.Viper {
-	return pod.conf
-}
+// // Conf TODO
+// func (pod *Pod) Conf() *viper.Viper {
+// 	return pod.conf
+// }
 
 // Info TODO
 func (pod *Pod) Info() (result Result, err error) {
