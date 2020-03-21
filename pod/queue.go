@@ -195,36 +195,36 @@ func (queue *Queue) Queuing() int64 {
 }
 
 // Put TODO
-func (queue *Queue) Put(request *request.Request) (Result, error) {
+func (queue *Queue) Put(request *request.Request) (result Result, err error) {
 	queue.locker.RLock()
 	defer queue.locker.RUnlock()
 
 	if queue.status != QueueWorking {
-		return nil, UnavailableError(fmt.Sprintf("%s %s", queue.ID, queue.status))
+		err = UnavailableError(fmt.Sprintf("%s %s", queue.ID, queue.status))
+		return
 	}
 
 	queuing := queue.incrQueuing(1)
 	defer queue.decrQueuing(1)
 
 	if queuing > 198405 {
-		return nil, UnavailableError(fmt.Sprintf("%s too many put requests %d", queue.ID, queuing))
+		err = UnavailableError(fmt.Sprintf("%s too many put requests %d", queue.ID, queuing))
+		return
 	}
 
-	if request.RawReq.Meta == nil {
-		request.RawReq.Meta = make(map[string]interface{})
+	if request.Meta == nil {
+		request.Meta = make(map[string]interface{})
 	}
-	request.RawReq.Meta["_pod_in_"] = time.Now().Unix()
-	j, err := request.JSON()
-	if err != nil {
-		return nil, err
+	request.Meta["_pod_in_"] = time.Now().Unix()
+	j, err := json.Marshal(request)
+	if err == nil {
+		rsize, err := queue.pod.Client.RPush(queue.redisKey, j).Result()
+		if err == nil {
+			qsize := queue.updateInput(1)
+			result = Result{"rsize": rsize, "qsize": qsize}
+		}
 	}
-	rsize, err := queue.pod.Client.RPush(queue.redisKey, j).Result()
-	if err != nil {
-		return nil, err
-	}
-	qsize := queue.updateInput(1)
-
-	return Result{"rsize": rsize, "qsize": qsize}, err
+	return
 }
 
 // Get TODO
@@ -241,19 +241,16 @@ func (queue *Queue) Get() (result Result, qsize int64, err error) {
 	qsize = queue.QueueSize()
 
 	if dequeuing > qsize || dequeuing > 198405 {
-		err = UnavailableError(fmt.Sprintf("%s qsize %d, dequeuing %d", queue.ID, qsize, dequeuing))
+		err = UnavailableError(fmt.Sprintf("%s qsize %d, dequeuing %d",
+			queue.ID, qsize, dequeuing))
 		return
 	}
 
 	r, err := queue.pod.Client.LPop(queue.redisKey).Result()
-	if err != nil {
-		return
-	}
-	qsize = queue.updateOutput(1)
-	result = Result{}
-	err = json.Unmarshal([]byte(r), &result)
-	if err != nil {
-		result = nil
+	if err == nil {
+		qsize = queue.updateOutput(1)
+		result = Result{}
+		err = json.Unmarshal([]byte(r), &result)
 	}
 	return
 }
@@ -280,13 +277,13 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 	if err != nil {
 		return
 	}
-	var requests []string
 	t := time.Now()
-	requests, err = queue.pod.Client.LRange(queue.redisKey, start, end).Result()
+	requests, err := queue.pod.Client.LRange(queue.redisKey, start, end).Result()
 	result["redis"] = Result{
 		"cost_ms": float64(time.Since(t)) / 1000000,
 	}
 	result["requests"] = requests
+	result["lrange"] = []int64{start, end}
 	return
 }
 
@@ -302,8 +299,7 @@ func (queue *Queue) Idle() bool {
 	queue.locker.Lock()
 	defer queue.locker.Unlock()
 	return queue.qsize <= 0 &&
-		(queue.status == QueueWorking ||
-			queue.status == QueueInit) &&
+		(queue.status == QueueWorking || queue.status == QueueInit) &&
 		queue.queuing <= 0
 }
 
