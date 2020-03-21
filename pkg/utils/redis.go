@@ -60,3 +60,67 @@ func ParseRedisInfo(info string, key string) (string, string) {
 	v := info[:t]
 	return k, v
 }
+
+type scanFunc func(key string, cursor uint64, match string, count int64) *redis.ScanCmd
+
+// ScanProcessFunc TODO
+type ScanProcessFunc func(keys []string) error
+
+// Scanner TODO
+type Scanner struct {
+	client *redis.Client
+	key    string
+	cursor uint64
+	match  string
+	count  int64
+	scan   scanFunc
+}
+
+// NewScanner TODO
+func NewScanner(client *redis.Client, scanType string, key string, match string, count int64) *Scanner {
+	scanner := &Scanner{
+		client: client,
+		key:    key,
+		cursor: 0,
+		match:  match,
+		count:  count,
+	}
+	st := strings.ToLower(scanType)
+	switch st {
+	case "scan":
+		scanner.scan = func(key string, cursor uint64, match string, count int64) *redis.ScanCmd {
+			return client.Scan(cursor, match, count)
+		}
+	case "hscan":
+		scanner.scan = client.HScan
+	case "sscan":
+		scanner.scan = client.SScan
+	case "zscan":
+		scanner.scan = client.ZScan
+	default:
+		panic(fmt.Errorf("invalid scan type %s", scanType))
+	}
+	return scanner
+}
+
+// Scan TODO
+func (scanner *Scanner) Scan(f ScanProcessFunc) (err error) {
+	for {
+		var keys []string
+		var cursor uint64
+		keys, cursor, err = scanner.scan(scanner.key, scanner.cursor, scanner.match, scanner.count).Result()
+		if err == nil {
+			err = f(keys)
+			if err != nil {
+				break
+			}
+		} else {
+			break
+		}
+		scanner.cursor = cursor
+		if scanner.cursor == 0 {
+			break
+		}
+	}
+	return
+}
