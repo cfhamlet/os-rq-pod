@@ -44,6 +44,8 @@ func (wp *HandlerWrapper) Wrap(f CtrlFunc) gin.HandlerFunc {
 			}
 
 			result["err"] = err.Error()
+		} else if result == nil {
+			return
 		}
 		c.JSON(code, result)
 	}

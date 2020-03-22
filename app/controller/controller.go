@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -68,8 +69,18 @@ func Info(c *gin.Context, pod *core.Pod) (core.Result, error) {
 }
 
 // GetRequest TODO
-func GetRequest(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return operateQueueByQuery(c, pod.GetRequest)
+func GetRequest(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
+	q := c.Query("q")
+	var qid core.QueueID
+	qid, err = QueueIDFromQuery(q)
+	if err == nil {
+		var req *request.Request
+		req, err = pod.GetRequest(qid)
+		if err == nil {
+			c.JSON(http.StatusOK, req)
+		}
+	}
+	return
 }
 
 func operateQueueByQuery(c *gin.Context, f CallByQueueID) (result core.Result, err error) {
