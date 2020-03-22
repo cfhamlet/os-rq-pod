@@ -34,24 +34,6 @@ func NewQueueBox(pod *Pod) *QueueBox {
 	}
 }
 
-func (box *QueueBox) loadQueues(keys []string) (err error) {
-	for _, key := range keys {
-		if box.pod.status != Preparing {
-			return UnavailableError(box.pod.status)
-		}
-		qid, e := QueueIDFromRedisKey(key)
-		if e != nil {
-			log.Logger.Warning("invalid key", key, e)
-		} else {
-			_, err = box.addQueue(qid)
-			if err != nil {
-				break
-			}
-		}
-	}
-	return
-}
-
 // LoadQueues TODO
 func (box *QueueBox) LoadQueues() (err error) {
 	box.Lock()
