@@ -1,5 +1,7 @@
 package slicemap
 
+import "sync"
+
 const minShrinkSize = 1024
 
 // Item TODO
@@ -12,19 +14,23 @@ type Map struct {
 	items  []Item
 	idxMap map[uint64]int
 	maxIdx int
+	*sync.RWMutex
 }
 
 // New TODO
 func New() *Map {
 	return &Map{
-		items:  make([]Item, 0),
-		idxMap: make(map[uint64]int),
-		maxIdx: 0,
+		items:   make([]Item, 0),
+		idxMap:  make(map[uint64]int),
+		maxIdx:  0,
+		RWMutex: &sync.RWMutex{},
 	}
 }
 
 // Add TODO
 func (m *Map) Add(item Item) {
+	m.Lock()
+	defer m.Unlock()
 	id := item.ItemID()
 	if idx, ok := m.idxMap[id]; ok {
 		m.items[idx] = item
@@ -42,6 +48,8 @@ func (m *Map) Add(item Item) {
 
 // Get TODO
 func (m *Map) Get(id uint64) Item {
+	m.RLock()
+	defer m.RUnlock()
 	if idx, ok := m.idxMap[id]; ok {
 		return m.items[idx]
 	}
@@ -50,6 +58,8 @@ func (m *Map) Get(id uint64) Item {
 
 // Size TODO
 func (m *Map) Size() int {
+	m.RLock()
+	defer m.RUnlock()
 	return m.maxIdx
 }
 
@@ -61,6 +71,8 @@ func (m *Map) shrink() {
 
 // Shrink TODO
 func (m *Map) Shrink() {
+	m.Lock()
+	defer m.Unlock()
 	m.shrink()
 }
 
@@ -91,5 +103,7 @@ func (m *Map) delete(id uint64) {
 
 // Delete TODO
 func (m *Map) Delete(item Item) {
+	m.Lock()
+	defer m.Unlock()
 	m.delete(item.ItemID())
 }

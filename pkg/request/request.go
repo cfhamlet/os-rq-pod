@@ -18,13 +18,27 @@ type RawRequest struct {
 
 // Request TODO
 type Request struct {
-	RawReq *RawRequest
+	*RawRequest
 	*utils.ParsedURL
 }
 
-// JSON TODO
-func (req *Request) JSON() ([]byte, error) {
-	return json.Marshal(req.RawReq)
+// MarshalJSON TODO
+func (req *Request) MarshalJSON() ([]byte, error) {
+	return json.Marshal(req.RawRequest)
+}
+
+// UnmarshalJSON TODO
+func (req *Request) UnmarshalJSON(b []byte) (err error) {
+	rawReq := &RawRequest{}
+	err = json.Unmarshal(b, rawReq)
+	if err == nil {
+		parsedURL, err := utils.NewParsedURL(rawReq.URL)
+		if err == nil {
+			req.RawRequest = rawReq
+			req.ParsedURL = parsedURL
+		}
+	}
+	return
 }
 
 // NewRequest TODO

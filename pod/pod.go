@@ -16,8 +16,8 @@ import (
 // Status type
 type Status string
 
-// ReturnResultAndError TODO
-type ReturnResultAndError func() (Result, error)
+// ResultAndErrorFunc TODO
+type ResultAndErrorFunc func() (Result, error)
 
 // Status enum
 const (
@@ -90,6 +90,9 @@ func (pod *Pod) OnStart() (err error) {
 	}
 
 	err = pod.queueBox.LoadQueues()
+	if err == nil {
+		err = pod.queueBox.LoadPaused()
+	}
 	pod.Lock()
 	defer pod.Unlock()
 
@@ -156,16 +159,16 @@ func (pod *Pod) Info() (result Result, err error) {
 }
 
 // GetRequest TODO
-func (pod *Pod) GetRequest(qid QueueID) (Result, error) {
-	return pod.withRLockOnWorkStatus(
-		func() (result Result, err error) {
-			if pod.status != Working {
-				err = UnavailableError(pod.status)
-				return
-			}
-			return pod.queueBox.GetRequest(qid)
-		},
-	)
+func (pod *Pod) GetRequest(qid QueueID) (req *request.Request, err error) {
+	pod.RLock()
+	defer pod.RUnlock()
+
+	if pod.status != Working {
+		err = UnavailableError(pod.status)
+	} else {
+		req, err = pod.queueBox.GetRequest(qid)
+	}
+	return
 }
 
 // AddRequest TODO
@@ -192,7 +195,7 @@ func (pod *Pod) AddRequest(rawReq *request.RawRequest) (Result, error) {
 	)
 }
 
-func (pod *Pod) withLockRLockOnWorkStatus(f ReturnResultAndError, lock bool) (result Result, err error) {
+func (pod *Pod) withLockRLockOnWorkStatus(f ResultAndErrorFunc, lock bool) (result Result, err error) {
 	if lock {
 		pod.Lock()
 		defer pod.Unlock()
@@ -207,11 +210,11 @@ func (pod *Pod) withLockRLockOnWorkStatus(f ReturnResultAndError, lock bool) (re
 	return f()
 }
 
-func (pod *Pod) withRLockOnWorkStatus(f ReturnResultAndError) (Result, error) {
+func (pod *Pod) withRLockOnWorkStatus(f ResultAndErrorFunc) (Result, error) {
 	return pod.withLockRLockOnWorkStatus(f, false)
 }
 
-func (pod *Pod) withLockOnWorkStatus(f ReturnResultAndError) (Result, error) {
+func (pod *Pod) withLockOnWorkStatus(f ResultAndErrorFunc) (Result, error) {
 	return pod.withLockRLockOnWorkStatus(f, true)
 }
 
@@ -219,7 +222,7 @@ func (pod *Pod) withLockOnWorkStatus(f ReturnResultAndError) (Result, error) {
 func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
-			return pod.queueBox.SetQueueStatus(qid, QueuePaused)
+			return pod.queueBox.SetStatus(qid, QueuePaused)
 		},
 	)
 }
@@ -228,7 +231,7 @@ func (pod *Pod) PauseQueue(qid QueueID) (Result, error) {
 func (pod *Pod) ResumeQueue(qid QueueID) (Result, error) {
 	return pod.withRLockOnWorkStatus(
 		func() (Result, error) {
-			return pod.queueBox.SetQueueStatus(qid, QueueWorking)
+			return pod.queueBox.SetStatus(qid, QueueWorking)
 		},
 	)
 }
