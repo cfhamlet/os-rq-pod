@@ -39,7 +39,7 @@ func (box *QueueBox) LoadQueues() (err error) {
 	box.Lock()
 	defer box.Unlock()
 
-	log.Logger.Debug("load queues start")
+	log.Logger.Info("load queues start")
 
 	scanner := utils.NewScanner(box.pod.Client, "scan", "", RedisQueueKeyPrefix+"*", 2000)
 	err = scanner.Scan(
@@ -67,7 +67,7 @@ func (box *QueueBox) LoadQueues() (err error) {
 	requestNum := box.pod.stats.RequestNum()
 
 	if err == nil {
-		log.Logger.Debugf("load queues finish, queues %d, requests %d",
+		log.Logger.Infof("load queues finish, queues %d, requests %d",
 			loadQueues, requestNum)
 	} else {
 		log.Logger.Errorf("load queues fail, queues %d, requests %d, %s",
@@ -83,7 +83,7 @@ func (box *QueueBox) LoadPaused() (err error) {
 	defer box.Unlock()
 
 	scanner := utils.NewScanner(box.pod.Client, "sscan", RedisPausedQueuesKey, "*", 1000)
-	log.Logger.Debug("load paused start")
+	log.Logger.Info("load paused start")
 
 	err = scanner.Scan(
 		func(keys []string) (err error) {
@@ -116,7 +116,7 @@ func (box *QueueBox) LoadPaused() (err error) {
 	paused := box.statusQueueIDs[QueuePaused].Size()
 
 	if err == nil {
-		log.Logger.Debugf("load paused finish, paused %d", paused)
+		log.Logger.Infof("load paused finish, paused %d", paused)
 	} else {
 		log.Logger.Errorf("load paused fail, paused %d, %s", paused, err)
 	}
