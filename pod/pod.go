@@ -90,6 +90,9 @@ func (pod *Pod) OnStart() (err error) {
 	}
 
 	err = pod.queueBox.LoadQueues()
+	if err == nil {
+		err = pod.queueBox.LoadPaused()
+	}
 	pod.Lock()
 	defer pod.Unlock()
 
@@ -156,16 +159,16 @@ func (pod *Pod) Info() (result Result, err error) {
 }
 
 // GetRequest TODO
-func (pod *Pod) GetRequest(qid QueueID) (Result, error) {
-	return pod.withRLockOnWorkStatus(
-		func() (result Result, err error) {
-			if pod.status != Working {
-				err = UnavailableError(pod.status)
-				return
-			}
-			return pod.queueBox.GetRequest(qid)
-		},
-	)
+func (pod *Pod) GetRequest(qid QueueID) (req *request.Request, err error) {
+	pod.RLock()
+	defer pod.RUnlock()
+
+	if pod.status != Working {
+		err = UnavailableError(pod.status)
+	} else {
+		req, err = pod.queueBox.GetRequest(qid)
+	}
+	return
 }
 
 // AddRequest TODO
