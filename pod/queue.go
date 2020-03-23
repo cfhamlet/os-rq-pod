@@ -422,8 +422,8 @@ func (queue *Queue) setStatus(newStatus QueueStatus) (err error) {
 	queue.status = newStatus
 	box.statusQueueIDs[oldStatus].Delete(queue.ID)
 	if newStatus != QueueRemoved {
-		box.statusQueueIDs[newStatus].Add(queue.ID)
 		box.queues[queue.ID] = queue
+		box.statusQueueIDs[newStatus].Add(queue.ID)
 	} else {
 		delete(box.queues, queue.ID)
 	}
