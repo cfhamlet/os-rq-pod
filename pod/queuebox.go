@@ -255,12 +255,11 @@ func (box *QueueBox) addQueue(qid QueueID) (queue *Queue, err error) {
 	}
 	queue = NewQueue(box.pod, qid, QueueInit)
 	_, err = queue.Sync()
+	newStatus := QueueWorking
 	if err != nil {
-		_ = queue.SetStatus(QueueRemoved)
-		queue = nil
-	} else if queue.Status() == QueueInit {
-		err = queue.SetStatus(QueueWorking)
+		newStatus = QueueRemoved
 	}
+	err = queue.SetStatusOn(newStatus, QueueInit)
 
 	return
 }
