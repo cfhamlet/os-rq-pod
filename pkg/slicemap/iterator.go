@@ -19,6 +19,8 @@ type FastIter struct {
 
 // Iter TODO
 func (iter *FastIter) Iter(f func(Item)) {
+	iter.m.RLock()
+	defer iter.m.RUnlock()
 	for _, item := range iter.m.items {
 		if item == nil {
 			break
@@ -59,6 +61,12 @@ func NewDeleteSafeIter(m *Map) *DeleteSafeIter {
 
 // Iter TODO
 func (iter *DeleteSafeIter) Iter(f func(Item)) {
+	iter.m.RLock()
+	defer iter.m.RUnlock()
+	iter.iter(f)
+}
+
+func (iter *DeleteSafeIter) iter(f func(Item)) {
 	m := iter.m
 	i := 0
 	for _, item := range m.items {
@@ -108,6 +116,9 @@ func (iter *SubIter) Break() {
 
 // Iter TODO
 func (iter *SubIter) Iter(f func(Item)) {
+	iter.m.RLock()
+	defer iter.m.RUnlock()
+
 	for _, item := range iter.m.items[iter.start : iter.start+iter.n] {
 		if item == nil {
 			break
@@ -141,6 +152,8 @@ func (iter *RandomKIter) Break() {
 
 // Iter TODO
 func (iter *RandomKIter) Iter(f func(Item)) {
+	iter.m.RLock()
+	defer iter.m.RUnlock()
 	i := 0
 	shuffled := iter.r.Perm(iter.m.maxIdx)
 	for _, idx := range shuffled {
@@ -180,6 +193,8 @@ func (iter *CycleIter) SetSteps(steps int) {
 
 // Iter TODO
 func (iter *CycleIter) Iter(f func(Item)) {
+	iter.m.RLock()
+	defer iter.m.RUnlock()
 	l := iter.m.Size()
 	if l <= 0 {
 		return
