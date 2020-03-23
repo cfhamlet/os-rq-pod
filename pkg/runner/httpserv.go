@@ -21,13 +21,12 @@ func HTTPServerLifecycle(lc fx.Lifecycle, server *http.Server, ready Ready) Fail
 					err := <-ready
 					if err != nil {
 						failWait <- err
-					} else {
-						log.Logger.Debug("start server", server.Addr)
-						var err error
-						if err = server.ListenAndServe(); err != http.ErrServerClosed {
-							log.Logger.Error("start fail", err)
-							failWait <- err
-						}
+						return
+					}
+					log.Logger.Debug("start server", server.Addr)
+					if err = server.ListenAndServe(); err != http.ErrServerClosed {
+						log.Logger.Error("start fail", err)
+						failWait <- err
 					}
 				}()
 				return nil
