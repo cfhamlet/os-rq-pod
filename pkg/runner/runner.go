@@ -23,8 +23,7 @@ func ServeFlowLifecycle(lc fx.Lifecycle, serv ServeFlow) Ready {
 		fx.Hook{
 			OnStart: func(context.Context) error {
 				go func() {
-					err := serv.OnStart()
-					ready <- err
+					ready <- serv.OnStart()
 				}()
 				return nil
 			},
