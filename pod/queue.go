@@ -436,3 +436,13 @@ func (queue *Queue) SetStatus(status QueueStatus) (err error) {
 	defer queue.locker.Unlock()
 	return queue.setStatus(status)
 }
+
+// SetStatusOn TODO
+func (queue *Queue) SetStatusOn(newStatus QueueStatus, on QueueStatus) (err error) {
+	queue.locker.Lock()
+	defer queue.locker.Unlock()
+	if queue.status == on {
+		err = queue.setStatus(newStatus)
+	}
+	return
+}
