@@ -275,7 +275,7 @@ func (box *QueueBox) DeleteQueue(qid QueueID) (Result, error) {
 			if err == nil {
 				err = queue.SetStatus(QueueRemoved)
 				if err == nil {
-					result["status"] = utils.Text(queue.Status())
+					result["status"] = queue.Status()
 				}
 			}
 			return
@@ -360,7 +360,7 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
 		"start":  start,
 		"queues": out,
 		"total":  l,
-		"status": utils.Text(status),
+		"status": status,
 	}
 }
 
