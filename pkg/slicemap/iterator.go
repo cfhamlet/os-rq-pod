@@ -119,7 +119,16 @@ func (iter *SubIter) Iter(f func(Item)) {
 	iter.m.RLock()
 	defer iter.m.RUnlock()
 
-	for _, item := range iter.m.items[iter.start : iter.start+iter.n] {
+	l := len(iter.m.items)
+	if iter.start > l {
+		return
+	}
+	end := iter.start + iter.n
+	if end > l {
+		end = l
+	}
+
+	for _, item := range iter.m.items[iter.start:end] {
 		if item == nil {
 			break
 		}
