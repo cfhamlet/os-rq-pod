@@ -2,7 +2,13 @@
 
 package pod
 
-import "github.com/cfhamlet/os-rq-pod/pkg/utils"
+import (
+	"bytes"
+	"fmt"
+
+	"github.com/cfhamlet/os-rq-pod/pkg/json"
+	"github.com/cfhamlet/os-rq-pod/pkg/utils"
+)
 
 // QueueStatus type
 type QueueStatus int
@@ -30,4 +36,29 @@ var QueueStatusList = []QueueStatus{
 	QueueWorking,
 	QueuePaused,
 	QueueRemoved,
+}
+
+// MarshalJSON TODO
+func (s QueueStatus) MarshalJSON() ([]byte, error) {
+	buffer := bytes.NewBufferString(`"`)
+	buffer.WriteString(utils.Text(s))
+	buffer.WriteString(`"`)
+	return buffer.Bytes(), nil
+}
+
+// UnmarshalJSON TODO
+func (s *QueueStatus) UnmarshalJSON(b []byte) error {
+	var j string
+	err := json.Unmarshal(b, &j)
+	if err != nil {
+		return err
+	}
+
+	t, ok := QueueStatusMap[j]
+	if !ok {
+		return fmt.Errorf(`invalid QueueStatus value '%s'`, j)
+	}
+
+	*s = t
+	return nil
 }

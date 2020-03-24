@@ -150,7 +150,7 @@ func (queue *Queue) sync() (result Result, err error) {
 	}
 	if err == nil {
 		result["ostatus"] = oldStatus
-		result["status"] = utils.Text(queue.status)
+		result["status"] = queue.status
 	}
 	return
 }
@@ -275,7 +275,7 @@ func (queue *Queue) metaInfo() Result {
 	return Result{
 		"rkey":      queue.redisKey,
 		"qid":       queue.ID,
-		"status":    utils.Text(queue.status),
+		"status":    queue.status,
 		"qsize":     queue.qsize,
 		"ctime":     queue.createTime,
 		"queuing":   queue.queuing,

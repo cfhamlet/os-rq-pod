@@ -187,8 +187,11 @@ func (box *QueueBox) SyncQueue(qid QueueID, force bool) (result Result, err erro
 		if ok {
 			result, err = queue.Sync()
 		}
+		idle := queue.Idle()
 		box.RUnlock()
-		_ = box.DeleteIdleQueue(qid)
+		if idle {
+			_ = box.DeleteIdleQueue(qid)
+		}
 	} else {
 		box.RUnlock()
 	}
@@ -271,6 +274,9 @@ func (box *QueueBox) DeleteQueue(qid QueueID) (Result, error) {
 			result, err = queue.Clear()
 			if err == nil {
 				err = queue.SetStatus(QueueRemoved)
+				if err == nil {
+					result["status"] = queue.Status()
+				}
 			}
 			return
 		},
@@ -354,7 +360,7 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
 		"start":  start,
 		"queues": out,
 		"total":  l,
-		"status": utils.Text(status),
+		"status": status,
 	}
 }
 
@@ -394,7 +400,7 @@ func (box *QueueBox) Info() (result Result) {
 	defer box.Unlock()
 	result = Result{}
 	for k, v := range box.statusQueueIDs {
-		result[string(k)] = v.Size()
+		result[utils.Text(k)] = v.Size()
 	}
 	return
 }
