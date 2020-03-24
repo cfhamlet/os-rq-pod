@@ -15,33 +15,6 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 )
 
-// QueueStatus type
-type QueueStatus string
-
-// QueueStatus enum
-const (
-	QueueInit    QueueStatus = "init"
-	QueueWorking QueueStatus = "working"
-	QueuePaused  QueueStatus = "paused"
-	QueueRemoved QueueStatus = "removed"
-)
-
-// QueueStatusMap TODO
-var QueueStatusMap = map[string]QueueStatus{
-	string(QueueInit):    QueueInit,
-	string(QueueWorking): QueueWorking,
-	string(QueuePaused):  QueuePaused,
-	string(QueueRemoved): QueueRemoved,
-}
-
-// QueueStatusList TODO
-var QueueStatusList = []QueueStatus{
-	QueueInit,
-	QueueWorking,
-	QueuePaused,
-	QueueRemoved,
-}
-
 // QueueID TODO
 type QueueID struct {
 	Host   string `json:"host"`
@@ -177,7 +150,7 @@ func (queue *Queue) sync() (result Result, err error) {
 	}
 	if err == nil {
 		result["ostatus"] = oldStatus
-		result["status"] = queue.status
+		result["status"] = utils.Text(queue.status)
 	}
 	return
 }
@@ -302,7 +275,7 @@ func (queue *Queue) metaInfo() Result {
 	return Result{
 		"rkey":      queue.redisKey,
 		"qid":       queue.ID,
-		"status":    queue.status,
+		"status":    utils.Text(queue.status),
 		"qsize":     queue.qsize,
 		"ctime":     queue.createTime,
 		"queuing":   queue.queuing,

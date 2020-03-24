@@ -175,10 +175,10 @@ func ProcessMemory(c *gin.Context, pod *core.Pod) (core.Result, error) {
 // ViewQueues TODO
 func ViewQueues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 
-	qt := c.DefaultQuery("type", string(core.QueueWorking))
-	status, ok := core.QueueStatusMap[qt]
+	qs := c.DefaultQuery("status", string(core.QueueWorking))
+	status, ok := core.QueueStatusMap[qs]
 	if !ok {
-		err = InvalidQuery(fmt.Sprintf(`invalid type '%s'`, qt))
+		err = InvalidQuery(fmt.Sprintf(`invalid status '%s'`, qs))
 		return
 	}
 
