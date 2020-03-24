@@ -59,6 +59,6 @@ func (s *QueueStatus) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf(`invalid QueueStatus value '%s'`, j)
 	}
 
-	*s = *&t
+	*s = t
 	return nil
 }

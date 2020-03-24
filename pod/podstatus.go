@@ -1,4 +1,4 @@
-//go:generate stringer -type=Status
+//go:generate stringer -type=Status -linecomment
 
 package pod
 
@@ -15,13 +15,13 @@ type Status int
 
 // Status enum
 const (
-	_ Status = iota
-	Init
-	Preparing
-	Working
-	Paused
-	Stopping
-	Stopped
+	_         Status = iota
+	Init             // init
+	Preparing        // preparing
+	Working          // working
+	Paused           // paused
+	Stopping         //stopping
+	Stopped          //stopped
 )
 
 // StatusMap TODO
@@ -55,6 +55,6 @@ func (s *Status) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf(`invalid Status value '%s'`, j)
 	}
 
-	*s = *&t
+	*s = t
 	return nil
 }
