@@ -2,13 +2,10 @@ package runner
 
 import (
 	"context"
-	"sync"
 
+	messagebus "github.com/vardius/message-bus"
 	"go.uber.org/fx"
 )
-
-// Ready TODO
-type Ready chan error
 
 // ServeFlow TODO
 type ServeFlow interface {
@@ -16,14 +13,54 @@ type ServeFlow interface {
 	OnStop() error
 }
 
+// Runner TODO
+type Runner struct {
+	messagebus.MessageBus
+	ready chan struct{}
+	fail  chan error
+}
+
+// New TODO
+func New() *Runner {
+	return &Runner{
+		messagebus.New(100),
+		make(chan struct{}),
+		make(chan error),
+	}
+}
+
+// WaitReady TODO
+func (runner *Runner) WaitReady() chan struct{} {
+	return runner.ready
+}
+
+// Ready TODO
+func (runner *Runner) Ready() {
+	runner.ready <- struct{}{}
+}
+
+// Fail TODO
+func (runner *Runner) Fail(err error) {
+	runner.fail <- err
+}
+
+// WaitFail TODO
+func (runner *Runner) WaitFail() chan error {
+	return runner.fail
+}
+
 // ServeFlowLifecycle TODO
-func ServeFlowLifecycle(lc fx.Lifecycle, serv ServeFlow) Ready {
-	ready := make(Ready)
+func ServeFlowLifecycle(lc fx.Lifecycle, serv ServeFlow, runner *Runner) {
 	lc.Append(
 		fx.Hook{
 			OnStart: func(context.Context) error {
 				go func() {
-					ready <- serv.OnStart()
+					err := serv.OnStart()
+					if err == nil {
+						runner.Ready()
+					} else {
+						runner.Fail(err)
+					}
 				}()
 				return nil
 			},
@@ -31,31 +68,10 @@ func ServeFlowLifecycle(lc fx.Lifecycle, serv ServeFlow) Ready {
 				return serv.OnStop()
 			},
 		})
-	return ready
-
-}
-
-func merge(cs ...<-chan error) <-chan error {
-	out := make(chan error)
-	var wg sync.WaitGroup
-	wg.Add(len(cs))
-	for _, c := range cs {
-		go func(c <-chan error) {
-			for v := range c {
-				out <- v
-			}
-			wg.Done()
-		}(c)
-	}
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
 }
 
 // Run TODO
-func Run(app *fx.App, noWaits ...<-chan error) {
+func (runner *Runner) Run(app *fx.App) {
 	defer func() {
 		if err := app.Stop(context.Background()); err != nil {
 			panic(err)
@@ -65,7 +81,7 @@ func Run(app *fx.App, noWaits ...<-chan error) {
 		panic(err)
 	}
 	select {
-	case <-merge(noWaits...):
+	case <-runner.WaitFail():
 	case <-app.Done():
 	}
 }

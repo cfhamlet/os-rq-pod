@@ -22,6 +22,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.4.0
+	github.com/vardius/message-bus v1.1.4
 	go.uber.org/fx v1.10.0
 	golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c // indirect
 	golang.org/x/tools v0.0.0-20200324003944-a576cf524670 // indirect

@@ -8,25 +8,17 @@ import (
 	"go.uber.org/fx"
 )
 
-// FailWait TODO
-type FailWait chan error
-
 // HTTPServerLifecycle TODO
-func HTTPServerLifecycle(lc fx.Lifecycle, server *http.Server, ready Ready) FailWait {
-	failWait := make(FailWait)
+func HTTPServerLifecycle(lc fx.Lifecycle, server *http.Server, runner *Runner) {
 	lc.Append(
 		fx.Hook{
 			OnStart: func(context.Context) error {
 				go func() {
-					err := <-ready
-					if err != nil {
-						failWait <- err
-						return
-					}
+					<-runner.WaitReady()
 					log.Logger.Debug("start server", server.Addr)
-					if err = server.ListenAndServe(); err != http.ErrServerClosed {
+					if err := server.ListenAndServe(); err != http.ErrServerClosed {
 						log.Logger.Error("start fail", err)
-						failWait <- err
+						runner.Fail(err)
 					}
 				}()
 				return nil
@@ -36,6 +28,4 @@ func HTTPServerLifecycle(lc fx.Lifecycle, server *http.Server, ready Ready) Fail
 				return server.Shutdown(ctx)
 			},
 		})
-
-	return failWait
 }
