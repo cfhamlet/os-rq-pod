@@ -1,6 +1,9 @@
 package utils
 
-import "unicode/utf8"
+import (
+	"fmt"
+	"unicode/utf8"
+)
 
 // AbsInt64 TODO
 func AbsInt64(n int64) int64 {
@@ -18,4 +21,9 @@ func Reverse(s string) string {
 		utf8.EncodeRune(buf[size-start:], r)
 	}
 	return string(buf)
+}
+
+// Text TODO
+func Text(obj interface{}) string {
+	return fmt.Sprintf("%s", obj)
 }
