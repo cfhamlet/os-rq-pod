@@ -13,21 +13,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Status type
-type Status string
-
 // ResultAndErrorFunc TODO
 type ResultAndErrorFunc func() (Result, error)
-
-// Status enum
-const (
-	Init      Status = "init"
-	Preparing Status = "preparing"
-	Working   Status = "working"
-	Paused    Status = "paused"
-	Stopping  Status = "stopping"
-	Stopped   Status = "stopped"
-)
 
 // Result TODO
 type Result map[string]interface{}
