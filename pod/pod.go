@@ -112,7 +112,7 @@ func (pod *Pod) metaInfo() (result Result) {
 	return Result{
 		"queues": pod.queueBox.Info(),
 		"stats":  pod.stats.Stats(),
-		"status": pod.status,
+		"status": utils.Text(pod.status),
 		"process": Result{
 			"memory": utils.MemoryInfo(pod.Process),
 			"cpu": Result{

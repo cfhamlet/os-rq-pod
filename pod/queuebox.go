@@ -354,7 +354,7 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
 		"start":  start,
 		"queues": out,
 		"total":  l,
-		"status": status,
+		"status": utils.Text(status),
 	}
 }
 
