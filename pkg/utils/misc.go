@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -26,4 +27,24 @@ func Reverse(s string) string {
 // Text TODO
 func Text(obj interface{}) string {
 	return fmt.Sprintf("%s", obj)
+}
+
+// Merge TODO
+func Merge(cs ...<-chan error) <-chan error {
+	out := make(chan error)
+	var wg sync.WaitGroup
+	wg.Add(len(cs))
+	for _, c := range cs {
+		go func(c <-chan error) {
+			for v := range c {
+				out <- v
+			}
+			wg.Done()
+		}(c)
+	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
 }

@@ -25,31 +25,32 @@ func run(conf *viper.Viper) {
 		return conf, err
 	}
 
-	podLifecycle := func(lc fx.Lifecycle, pod *core.Pod) runner.Ready {
-		return runner.ServeFlowLifecycle(lc, pod)
+	podLifecycle := func(lc fx.Lifecycle, pod *core.Pod, r *runner.Runner) {
+		runner.ServeFlowLifecycle(lc, pod, r)
 	}
 
-	var failWait runner.FailWait
+	var r *runner.Runner
 
 	app := fx.New(
 		fx.Provide(
+			runner.New,
 			newConfig,
 			utils.NewRedisClient,
 			core.NewPod,
 			ginserv.NewEngine,
 			ginserv.NewServer,
 			ginserv.NewAPIGroup,
-			podLifecycle,
-			runner.HTTPServerLifecycle,
 		),
 		fx.Invoke(
 			config.PrintDebugConfig,
 			log.ConfigLogging,
 			ginserv.LoadGlobalMiddlewares,
+			podLifecycle,
 			router.InitAPIRouter,
+			runner.HTTPServerLifecycle,
 		),
-		fx.Populate(&failWait),
+		fx.Populate(&r),
 	)
 
-	runner.Run(app, failWait)
+	r.Run(app)
 }
