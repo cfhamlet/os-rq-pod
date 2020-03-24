@@ -23,7 +23,7 @@ require (
 	github.com/spf13/viper v1.4.0
 	github.com/stretchr/testify v1.4.0
 	go.uber.org/fx v1.10.0
-	golang.org/x/net v0.0.0-20200219183655-46282727080f // indirect
 	golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c // indirect
+	golang.org/x/tools v0.0.0-20200324003944-a576cf524670 // indirect
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 )

@@ -8,6 +8,7 @@ GOPATH      := $(shell go env GOPATH)
 GOVERSION   := $(shell go version)
 GOIMPORTS   := $(GOPATH)/bin/goimports
 GOLINT      := $(GOPATH)/bin/golangci-lint
+STRINGER    := $(GOPATH)/bin/stringer
 INSTALLPATH := $(GOPATH)/bin
 
 PKG         := ./...
@@ -37,11 +38,26 @@ LDFLAGS +=  -X "$(VERSIONMOD).gitTag=$(GIT_TAG)"
 LDFLAGS +=  -X "$(VERSIONMOD).gitStatus=$(GIT_STATUS)"
 LDFLAGS +=  -X "$(LOGMOD).rootLoggerName=$(ROOTLOGGER)"
 
+
+
 .PHONY: all
+all: clean
 all: build
+
+.PHONY: generate
+generate:$(STRINGER)
+	@echo
+	@echo  "==> Run go generate <=="
+	go generate $(PKG)
+
+$(STRINGER):
+	@echo
+	@echo  "==> Installing stringer <=="
+	@go get golang.org/x/tools/cmd/stringer
 
 
 .PHONY: build
+build: generate
 build: $(BINDIR)/$(BINNAME)
 
 $(BINDIR)/$(BINNAME): $(SRC)

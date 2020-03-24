@@ -16,3 +16,6 @@ bin/
 
 # Vscode
 .vscode/
+
+# go generate
+*_string.go
