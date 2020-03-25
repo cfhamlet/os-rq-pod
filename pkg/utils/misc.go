@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"sync"
+	"time"
 	"unicode/utf8"
 )
 
@@ -47,4 +48,9 @@ func Merge(cs ...<-chan error) <-chan error {
 		close(out)
 	}()
 	return out
+}
+
+//SinceMS TODO
+func SinceMS(t time.Time) float64 {
+	return float64(time.Since(t)) / 1000000
 }

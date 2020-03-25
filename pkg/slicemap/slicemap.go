@@ -77,7 +77,7 @@ func (m *Map) Shrink() {
 	m.shrink()
 }
 
-func (m *Map) delete(id uint64) {
+func (m *Map) delete(id uint64) bool {
 	if idx, ok := m.idxMap[id]; ok {
 		delete(m.idxMap, id)
 		if idx == m.maxIdx-1 {
@@ -91,7 +91,7 @@ func (m *Map) delete(id uint64) {
 			m.items[m.maxIdx] = nil
 		}
 	} else {
-		return
+		return false
 	}
 
 	// Shrink to prevent slice increasing with no limit.
@@ -100,11 +100,12 @@ func (m *Map) delete(id uint64) {
 		(float64(overCount)/float64(m.maxIdx) > 0.1) {
 		m.shrink()
 	}
+	return true
 }
 
 // Delete TODO
-func (m *Map) Delete(item Item) {
+func (m *Map) Delete(item Item) bool {
 	m.Lock()
 	defer m.Unlock()
-	m.delete(item.ItemID())
+	return m.delete(item.ItemID())
 }
