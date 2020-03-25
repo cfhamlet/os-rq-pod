@@ -393,7 +393,7 @@ func (queue *Queue) setStatus(newStatus QueueStatus) (err error) {
 
 	box := queue.pod.queueBox
 	queue.status = newStatus
-	box.statusQueueIDs[oldStatus].Delete(queue.ID)
+	box.statusQueueIDs[oldStatus].Delete(queue.ID.ItemID())
 	if newStatus != QueueRemoved {
 		box.queues[queue.ID] = queue
 		box.statusQueueIDs[newStatus].Add(queue.ID)
