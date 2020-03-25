@@ -104,8 +104,8 @@ func (m *Map) delete(id uint64) bool {
 }
 
 // Delete TODO
-func (m *Map) Delete(item Item) bool {
+func (m *Map) Delete(id uint64) bool {
 	m.Lock()
 	defer m.Unlock()
-	return m.delete(item.ItemID())
+	return m.delete(id)
 }

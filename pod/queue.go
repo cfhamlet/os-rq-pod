@@ -119,7 +119,7 @@ func (queue *Queue) sync() (result Result, err error) {
 	t := time.Now()
 	cmders, err = pipe.Exec()
 	result["redis"] = Result{
-		"_cost_ms": utils.SinceMS(t),
+		"_cost_ms_": utils.SinceMS(t),
 	}
 	if err != nil {
 		return
@@ -228,7 +228,7 @@ func (queue *Queue) Put(request *request.Request) (result Result, err error) {
 	if request.Meta == nil {
 		request.Meta = make(map[string]interface{})
 	}
-	request.Meta["_pod_in"] = time.Now().Unix()
+	request.Meta["_pod_in_"] = time.Now().Unix()
 	j, err := json.Marshal(request)
 	if err == nil {
 		rsize, err := queue.pod.Client.RPush(queue.redisKey, j).Result()
@@ -296,7 +296,7 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 	var requests []string
 	requests, err = queue.pod.Client.LRange(queue.redisKey, start, end).Result()
 	result["redis"] = Result{
-		"_cost_ms": utils.SinceMS(t),
+		"_cost_ms_": utils.SinceMS(t),
 	}
 	result["requests"] = requests
 	result["lrange"] = []int64{start, end}
@@ -339,7 +339,7 @@ func (queue *Queue) Clear() (result Result, err error) {
 		return e
 	}, queue.redisKey)
 	result["redis"] = Result{
-		"_cost_ms": utils.SinceMS(t),
+		"_cost_ms_": utils.SinceMS(t),
 	}
 
 	if err == nil && queue.qsize != 0 {
@@ -393,7 +393,7 @@ func (queue *Queue) setStatus(newStatus QueueStatus) (err error) {
 
 	box := queue.pod.queueBox
 	queue.status = newStatus
-	box.statusQueueIDs[oldStatus].Delete(queue.ID)
+	box.statusQueueIDs[oldStatus].Delete(queue.ID.ItemID())
 	if newStatus != QueueRemoved {
 		box.queues[queue.ID] = queue
 		box.statusQueueIDs[newStatus].Add(queue.ID)
