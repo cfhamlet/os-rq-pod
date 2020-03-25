@@ -28,13 +28,13 @@ func New() *Map {
 }
 
 // Add TODO
-func (m *Map) Add(item Item) {
+func (m *Map) Add(item Item) bool {
 	m.Lock()
 	defer m.Unlock()
 	id := item.ItemID()
 	if idx, ok := m.idxMap[id]; ok {
 		m.items[idx] = item
-		return
+		return false
 	}
 
 	m.idxMap[id] = m.maxIdx
@@ -44,6 +44,7 @@ func (m *Map) Add(item Item) {
 		m.items = append(m.items, item)
 	}
 	m.maxIdx++
+	return true
 }
 
 // Get TODO
