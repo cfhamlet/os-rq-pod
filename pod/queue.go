@@ -119,7 +119,7 @@ func (queue *Queue) sync() (result Result, err error) {
 	t := time.Now()
 	cmders, err = pipe.Exec()
 	result["redis"] = Result{
-		"_cost_ms": float64(time.Since(t)) / 1000000,
+		"_cost_ms": utils.SinceMS(t),
 	}
 	if err != nil {
 		return
@@ -296,7 +296,7 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 	var requests []string
 	requests, err = queue.pod.Client.LRange(queue.redisKey, start, end).Result()
 	result["redis"] = Result{
-		"_cost_ms": float64(time.Since(t)) / 1000000,
+		"_cost_ms": utils.SinceMS(t),
 	}
 	result["requests"] = requests
 	result["lrange"] = []int64{start, end}
@@ -339,7 +339,7 @@ func (queue *Queue) Clear() (result Result, err error) {
 		return e
 	}, queue.redisKey)
 	result["redis"] = Result{
-		"_cost_ms": float64(time.Since(t)) / 1000000,
+		"_cost_ms": utils.SinceMS(t),
 	}
 
 	if err == nil && queue.qsize != 0 {
