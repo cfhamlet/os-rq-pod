@@ -119,7 +119,7 @@ func (queue *Queue) sync() (result Result, err error) {
 	t := time.Now()
 	cmders, err = pipe.Exec()
 	result["redis"] = Result{
-		"cost_ms": float64(time.Since(t)) / 1000000,
+		"_cost_ms": float64(time.Since(t)) / 1000000,
 	}
 	if err != nil {
 		return
@@ -228,7 +228,7 @@ func (queue *Queue) Put(request *request.Request) (result Result, err error) {
 	if request.Meta == nil {
 		request.Meta = make(map[string]interface{})
 	}
-	request.Meta["_pod_in_"] = time.Now().Unix()
+	request.Meta["_pod_in"] = time.Now().Unix()
 	j, err := json.Marshal(request)
 	if err == nil {
 		rsize, err := queue.pod.Client.RPush(queue.redisKey, j).Result()
@@ -296,7 +296,7 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 	var requests []string
 	requests, err = queue.pod.Client.LRange(queue.redisKey, start, end).Result()
 	result["redis"] = Result{
-		"cost_ms": float64(time.Since(t)) / 1000000,
+		"_cost_ms": float64(time.Since(t)) / 1000000,
 	}
 	result["requests"] = requests
 	result["lrange"] = []int64{start, end}
@@ -339,7 +339,7 @@ func (queue *Queue) Clear() (result Result, err error) {
 		return e
 	}, queue.redisKey)
 	result["redis"] = Result{
-		"cost_ms": float64(time.Since(t)) / 1000000,
+		"_cost_ms": float64(time.Since(t)) / 1000000,
 	}
 
 	if err == nil && queue.qsize != 0 {
