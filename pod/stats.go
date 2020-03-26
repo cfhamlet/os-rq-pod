@@ -22,10 +22,13 @@ func WindowTotal(window *average.SlidingWindow, second time.Duration) int64 {
 
 // Stats TODO
 func (stats *Stats) Stats() Result {
-	result := Result{}
-	result["requests_total"] = stats.RequestNum()
-	result["requests_input_5s"] = WindowTotal(stats.requestInputWS, 5)
-	result["requests_output_5s"] = WindowTotal(stats.requestOutputWS, 5)
+	result := Result{
+		"total": stats.RequestNum(),
+		"speed": Result{
+			"input_5s":  WindowTotal(stats.requestInputWS, 5),
+			"output_5s": WindowTotal(stats.requestOutputWS, 5),
+		},
+	}
 	return result
 }
 
