@@ -175,6 +175,7 @@ func (queue *Queue) updateOutput(n int64) int64 {
 func (queue *Queue) incr(n int64) int64 {
 	return atomic.AddInt64(&(queue.qsize), n)
 }
+
 func (queue *Queue) decr(n int64) int64 {
 	return atomic.AddInt64(&(queue.qsize), 0-n)
 }
