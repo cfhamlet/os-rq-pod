@@ -2,6 +2,7 @@ package pod
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -110,10 +111,11 @@ func (pod *Pod) OnStop() (err error) {
 // metaInfo TODO
 func (pod *Pod) metaInfo() (result Result) {
 	return Result{
-		"queues": pod.queueBox.Info(),
-		"stats":  pod.stats.Stats(),
-		"status": pod.status,
+		"queues_stats":   pod.queueBox.Info(),
+		"requests_stats": pod.stats.Stats(),
+		"status":         pod.status,
 		"process": Result{
+			"pid":    os.Getpid(),
 			"memory": utils.MemoryInfo(pod.Process),
 			"cpu": Result{
 				"percent": utils.CPUPercent(pod.Process),

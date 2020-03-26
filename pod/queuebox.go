@@ -149,7 +149,7 @@ func (box *QueueBox) withLockRLockMustExist(qid QueueID, f CallByQueue, lock boo
 func (box *QueueBox) mustExist(qid QueueID, f CallByQueue) (result Result, err error) {
 	queue, ok := box.queues[qid]
 	if !ok {
-		err = QueueNotExistError(qid.String())
+		err = NotExistError(qid.String())
 		return
 	}
 	return f(queue)
@@ -177,7 +177,7 @@ func (box *QueueBox) SyncQueue(qid QueueID, force bool) (result Result, err erro
 		if force {
 			queue, err = box.addQueue(qid)
 		} else {
-			err = QueueNotExistError(qid.String())
+			err = NotExistError(qid.String())
 			box.RUnlock()
 			return
 		}
@@ -230,7 +230,7 @@ func (box *QueueBox) GetRequest(qid QueueID) (req *request.Request, err error) {
 	queue, ok := box.queues[qid]
 
 	if !ok {
-		err = QueueNotExistError(qid.String())
+		err = NotExistError(qid.String())
 		box.RUnlock()
 		return
 	}
@@ -241,7 +241,7 @@ func (box *QueueBox) GetRequest(qid QueueID) (req *request.Request, err error) {
 	if qsize <= 0 || err == redis.Nil {
 		_, _ = box.SyncQueue(qid, false)
 		if err == redis.Nil {
-			err = QueueNotExistError(qid.String())
+			err = NotExistError(qid.String())
 		}
 	}
 	return
@@ -359,6 +359,7 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
 		"k":      k,
 		"start":  start,
 		"queues": out,
+		"count":  len(out),
 		"total":  l,
 		"status": status,
 	}
@@ -380,12 +381,13 @@ func (box *QueueBox) Queues(k int) Result {
 	return Result{
 		"k":      k,
 		"queues": out,
+		"count":  len(out),
 		"total":  l,
 	}
 }
 
-// QueuesNum TODO
-func (box *QueueBox) QueuesNum(status QueueStatus) int {
+// QueuesCount TODO
+func (box *QueueBox) QueuesCount(status QueueStatus) int {
 	box.Lock()
 	defer box.Unlock()
 	if status == QueueInit {
@@ -394,13 +396,21 @@ func (box *QueueBox) QueuesNum(status QueueStatus) int {
 	return box.statusQueueIDs[status].Size()
 }
 
-// Info TODO
-func (box *QueueBox) Info() (result Result) {
-	box.Lock()
-	defer box.Unlock()
-	result = Result{}
+func (box *QueueBox) info() (result Result) {
+	r := Result{}
 	for k, v := range box.statusQueueIDs {
-		result[utils.Text(k)] = v.Size()
+		r[utils.Text(k)] = v.Size()
+	}
+	result = Result{
+		"total":      len(box.queues),
+		"status_num": r,
 	}
 	return
+}
+
+// Info TODO
+func (box *QueueBox) Info() (result Result) {
+	box.RLock()
+	defer box.RUnlock()
+	return box.info()
 }

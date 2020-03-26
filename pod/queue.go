@@ -38,12 +38,12 @@ func (qid QueueID) MarshalJSON() ([]byte, error) {
 
 // Queue TODO
 type Queue struct {
-	pod        *Pod
-	ID         QueueID
-	status     QueueStatus
-	redisKey   string
-	qsize      int64
-	locker     *sync.RWMutex
+	pod      *Pod
+	ID       QueueID
+	status   QueueStatus
+	redisKey string
+	qsize    int64
+	*sync.RWMutex
 	createTime time.Time
 	queuing    int64
 	dequeuing  int64
@@ -157,8 +157,8 @@ func (queue *Queue) sync() (result Result, err error) {
 
 // Sync TODO
 func (queue *Queue) Sync() (result Result, err error) {
-	queue.locker.Lock()
-	defer queue.locker.Unlock()
+	queue.Lock()
+	defer queue.Unlock()
 	return queue.sync()
 }
 
@@ -175,6 +175,7 @@ func (queue *Queue) updateOutput(n int64) int64 {
 func (queue *Queue) incr(n int64) int64 {
 	return atomic.AddInt64(&(queue.qsize), n)
 }
+
 func (queue *Queue) decr(n int64) int64 {
 	return atomic.AddInt64(&(queue.qsize), 0-n)
 }
@@ -209,8 +210,8 @@ func (queue *Queue) Queuing() int64 {
 
 // Put TODO
 func (queue *Queue) Put(request *request.Request) (result Result, err error) {
-	queue.locker.RLock()
-	defer queue.locker.RUnlock()
+	queue.RLock()
+	defer queue.RUnlock()
 
 	if queue.status != QueueWorking {
 		err = UnavailableError(fmt.Sprintf("%s %s", queue.ID, queue.status))
@@ -242,8 +243,8 @@ func (queue *Queue) Put(request *request.Request) (result Result, err error) {
 
 // Get TODO
 func (queue *Queue) Get() (req *request.Request, qsize int64, err error) {
-	queue.locker.RLock()
-	defer queue.locker.RUnlock()
+	queue.RLock()
+	defer queue.RUnlock()
 
 	if queue.status != QueueWorking {
 		err = UnavailableError(fmt.Sprintf("%s %s", queue.ID, queue.status))
@@ -285,8 +286,8 @@ func (queue *Queue) metaInfo() Result {
 
 // View TODO
 func (queue *Queue) View(start int64, end int64) (result Result, err error) {
-	queue.locker.Lock()
-	defer queue.locker.Unlock()
+	queue.Lock()
+	defer queue.Unlock()
 
 	result, err = queue.sync()
 	if err != nil {
@@ -305,15 +306,15 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 
 // Info TODO
 func (queue *Queue) Info() Result {
-	queue.locker.Lock()
-	defer queue.locker.Unlock()
+	queue.Lock()
+	defer queue.Unlock()
 	return queue.metaInfo()
 }
 
 // Idle TODO
 func (queue *Queue) Idle() bool {
-	queue.locker.Lock()
-	defer queue.locker.Unlock()
+	queue.Lock()
+	defer queue.Unlock()
 	return queue.qsize <= 0 &&
 		(queue.status == QueueWorking || queue.status == QueueInit) &&
 		queue.queuing <= 0
@@ -321,8 +322,8 @@ func (queue *Queue) Idle() bool {
 
 // Clear TODO
 func (queue *Queue) Clear() (result Result, err error) {
-	queue.locker.Lock()
-	defer queue.locker.Unlock()
+	queue.Lock()
+	defer queue.Unlock()
 
 	result = queue.metaInfo()
 	result["drop"] = 0
@@ -352,8 +353,8 @@ func (queue *Queue) Clear() (result Result, err error) {
 
 // Status TODO
 func (queue *Queue) Status() QueueStatus {
-	queue.locker.RLock()
-	defer queue.locker.RUnlock()
+	queue.RLock()
+	defer queue.RUnlock()
 	return queue.status
 }
 
@@ -405,15 +406,15 @@ func (queue *Queue) setStatus(newStatus QueueStatus) (err error) {
 
 // SetStatus TODO
 func (queue *Queue) SetStatus(status QueueStatus) (err error) {
-	queue.locker.Lock()
-	defer queue.locker.Unlock()
+	queue.Lock()
+	defer queue.Unlock()
 	return queue.setStatus(status)
 }
 
 // SetStatusOn TODO
 func (queue *Queue) SetStatusOn(newStatus QueueStatus, on QueueStatus) (err error) {
-	queue.locker.Lock()
-	defer queue.locker.Unlock()
+	queue.Lock()
+	defer queue.Unlock()
 	if queue.status == on {
 		err = queue.setStatus(newStatus)
 	}

@@ -2,10 +2,10 @@ package pod
 
 import "fmt"
 
-// QueueNotExistError TODO
-type QueueNotExistError string
+// NotExistError TODO
+type NotExistError string
 
-func (e QueueNotExistError) Error() string {
+func (e NotExistError) Error() string {
 	return fmt.Sprintf("not exist %s", string(e))
 }
 
