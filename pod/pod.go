@@ -111,7 +111,7 @@ func (pod *Pod) OnStop() (err error) {
 // metaInfo TODO
 func (pod *Pod) metaInfo() (result Result) {
 	return Result{
-		"queues": pod.queueBox.Info(),
+		"qinfo":  pod.queueBox.Info(),
 		"stats":  pod.stats.Stats(),
 		"status": pod.status,
 		"process": Result{

@@ -356,11 +356,12 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
 		out = box.fillQueues(iterator)
 	}
 	return Result{
-		"k":          k,
-		"start":      start,
-		"queues":     out,
-		"queues_all": l,
-		"status":     status,
+		"k":            k,
+		"start":        start,
+		"queues":       out,
+		"queues_num":   len(out),
+		"queues_total": l,
+		"status":       status,
 	}
 }
 
@@ -378,9 +379,10 @@ func (box *QueueBox) Queues(k int) Result {
 		out = box.fillQueues(iterator)
 	}
 	return Result{
-		"k":          k,
-		"queues":     out,
-		"queues_all": l,
+		"k":            k,
+		"queues":       out,
+		"queues_num":   len(out),
+		"queues_total": l,
 	}
 }
 
@@ -394,13 +396,21 @@ func (box *QueueBox) QueuesNum(status QueueStatus) int {
 	return box.statusQueueIDs[status].Size()
 }
 
-// Info TODO
-func (box *QueueBox) Info() (result Result) {
-	box.Lock()
-	defer box.Unlock()
-	result = Result{}
+func (box *QueueBox) info() (result Result) {
+	r := Result{}
 	for k, v := range box.statusQueueIDs {
-		result[utils.Text(k)] = v.Size()
+		r[utils.Text(k)] = v.Size()
+	}
+	result = Result{
+		"queues_total":  len(box.queues),
+		"queues_status": r,
 	}
 	return
+}
+
+// Info TODO
+func (box *QueueBox) Info() (result Result) {
+	box.RLock()
+	defer box.RUnlock()
+	return box.info()
 }
