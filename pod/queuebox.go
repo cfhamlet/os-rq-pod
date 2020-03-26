@@ -356,11 +356,11 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
 		out = box.fillQueues(iterator)
 	}
 	return Result{
-		"k":      k,
-		"start":  start,
-		"queues": out,
-		"total":  l,
-		"status": status,
+		"k":          k,
+		"start":      start,
+		"queues":     out,
+		"queues_all": l,
+		"status":     status,
 	}
 }
 
@@ -378,9 +378,9 @@ func (box *QueueBox) Queues(k int) Result {
 		out = box.fillQueues(iterator)
 	}
 	return Result{
-		"k":      k,
-		"queues": out,
-		"total":  l,
+		"k":          k,
+		"queues":     out,
+		"queues_all": l,
 	}
 }
 
