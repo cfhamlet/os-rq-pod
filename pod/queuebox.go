@@ -402,8 +402,8 @@ func (box *QueueBox) info() (result Result) {
 		r[utils.Text(k)] = v.Size()
 	}
 	result = Result{
-		"queues_total":  len(box.queues),
-		"queues_status": r,
+		"total":  len(box.queues),
+		"status": r,
 	}
 	return
 }
