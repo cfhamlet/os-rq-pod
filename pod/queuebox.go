@@ -149,7 +149,7 @@ func (box *QueueBox) withLockRLockMustExist(qid QueueID, f CallByQueue, lock boo
 func (box *QueueBox) mustExist(qid QueueID, f CallByQueue) (result Result, err error) {
 	queue, ok := box.queues[qid]
 	if !ok {
-		err = QueueNotExistError(qid.String())
+		err = NotExistError(qid.String())
 		return
 	}
 	return f(queue)
@@ -177,7 +177,7 @@ func (box *QueueBox) SyncQueue(qid QueueID, force bool) (result Result, err erro
 		if force {
 			queue, err = box.addQueue(qid)
 		} else {
-			err = QueueNotExistError(qid.String())
+			err = NotExistError(qid.String())
 			box.RUnlock()
 			return
 		}
@@ -230,7 +230,7 @@ func (box *QueueBox) GetRequest(qid QueueID) (req *request.Request, err error) {
 	queue, ok := box.queues[qid]
 
 	if !ok {
-		err = QueueNotExistError(qid.String())
+		err = NotExistError(qid.String())
 		box.RUnlock()
 		return
 	}
@@ -241,7 +241,7 @@ func (box *QueueBox) GetRequest(qid QueueID) (req *request.Request, err error) {
 	if qsize <= 0 || err == redis.Nil {
 		_, _ = box.SyncQueue(qid, false)
 		if err == redis.Nil {
-			err = QueueNotExistError(qid.String())
+			err = NotExistError(qid.String())
 		}
 	}
 	return
