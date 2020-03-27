@@ -379,16 +379,16 @@ func (queue *Queue) setStatus(newStatus QueueStatus) (err error) {
 	case QueueRemoved:
 		err = e
 	}
-	if err != nil {
-		return
-	}
-	if newStatus == QueuePaused {
-		_, err = queue.pod.Client.SAdd(RedisPausedQueuesKey, queue.ID.String()).Result()
-	} else if oldStatus == QueuePaused {
-		_, err = queue.pod.Client.SRem(RedisPausedQueuesKey, queue.ID.String()).Result()
-	}
-
-	if err != nil {
+	if err == nil {
+		if newStatus == QueuePaused {
+			_, err = queue.pod.Client.SAdd(RedisPausedQueuesKey, queue.ID.String()).Result()
+		} else if oldStatus == QueuePaused {
+			_, err = queue.pod.Client.SRem(RedisPausedQueuesKey, queue.ID.String()).Result()
+		}
+		if err != nil {
+			return
+		}
+	} else {
 		return
 	}
 
