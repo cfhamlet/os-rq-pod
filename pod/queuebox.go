@@ -1,281 +1,90 @@
 package pod
 
 import (
-	"sync"
-
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
+	"github.com/cfhamlet/os-rq-pod/pkg/serv"
 	"github.com/cfhamlet/os-rq-pod/pkg/slicemap"
+	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/go-redis/redis/v7"
 )
 
 // QueueBox TODO
 type QueueBox struct {
-	pod            *Pod
-	queues         map[QueueID]*Queue
-	statusQueueIDs map[QueueStatus]*slicemap.Map
-	*sync.RWMutex
-	cLocker *sync.Mutex
+	core         *Core
+	stats        *Stats
+	statusQueues map[QueueStatus]*slicemap.MustViewer
+	*utils.BulkLock
 }
 
 // NewQueueBox TODO
-func NewQueueBox(pod *Pod) *QueueBox {
-	statusQueueIDs := map[QueueStatus]*slicemap.Map{}
+func NewQueueBox(core *Core) *QueueBox {
+	statusQueues := map[QueueStatus]*slicemap.MustViewer{}
 	for _, status := range QueueStatusList {
-		statusQueueIDs[status] = slicemap.New()
+		statusQueues[status] = slicemap.NewMustViewer(slicemap.New())
 	}
 	return &QueueBox{
-		pod,
-		map[QueueID]*Queue{},
-		statusQueueIDs,
-		&sync.RWMutex{},
-		&sync.Mutex{},
+		core,
+		NewStats(),
+		statusQueues,
+		utils.NewBulkLock(1024),
 	}
-}
-
-// LoadQueues TODO
-func (box *QueueBox) LoadQueues() (err error) {
-	box.Lock()
-	defer box.Unlock()
-
-	log.Logger.Info("load queues start")
-
-	scanner := utils.NewScanner(box.pod.Client, "scan", "", RedisQueueKeyPrefix+"*", 2000)
-	err = scanner.Scan(
-		func(keys []string) (err error) {
-			for _, key := range keys {
-				err = box.pod.setStatus(Preparing)
-				if err != nil {
-					break
-				}
-				qid, e := QueueIDFromRedisKey(key)
-				if e != nil {
-					log.Logger.Warning("invalid key", key, e)
-				} else {
-					_, err = box.addQueue(qid)
-				}
-				if err != nil {
-					break
-				}
-			}
-			return
-		},
-	)
-
-	loadQueues := len(box.queues)
-	requestNum := box.pod.stats.RequestNum()
-
-	if err == nil {
-		log.Logger.Infof("load queues finish, queues %d, requests %d",
-			loadQueues, requestNum)
-	} else {
-		log.Logger.Errorf("load queues fail, queues %d, requests %d, %s",
-			loadQueues, requestNum, err)
-	}
-
-	return
-}
-
-// LoadPaused TODO
-func (box *QueueBox) LoadPaused() (err error) {
-	box.Lock()
-	defer box.Unlock()
-
-	scanner := utils.NewScanner(box.pod.Client, "sscan", RedisPausedQueuesKey, "*", 1000)
-	log.Logger.Info("load paused start")
-
-	err = scanner.Scan(
-		func(keys []string) (err error) {
-			for _, key := range keys {
-				err = box.pod.setStatus(Preparing)
-				if err != nil {
-					break
-				}
-				qid, e := QueueIDFromString(key)
-				if e != nil {
-					log.Logger.Warning(e)
-					continue
-				}
-				var queue *Queue
-				queue, err = box.addQueue(qid)
-				if err != nil {
-					break
-				}
-				if queue.Status() != QueuePaused {
-					err = queue.SetStatus(QueuePaused)
-				}
-				if err != nil {
-					break
-				}
-			}
-			return
-		},
-	)
-
-	paused := box.statusQueueIDs[QueuePaused].Size()
-
-	if err == nil {
-		log.Logger.Infof("load paused finish, paused %d", paused)
-	} else {
-		log.Logger.Errorf("load paused fail, paused %d, %s", paused, err)
-	}
-
-	return
 }
 
 // CallByQueue TODO
-type CallByQueue func(*Queue) (Result, error)
+type CallByQueue func(*Queue) (sth.Result, error)
 
-func (box *QueueBox) withRLockMustExist(qid QueueID, f CallByQueue) (Result, error) {
-	return box.withLockRLockMustExist(qid, f, false)
-}
-
-func (box *QueueBox) withLockMustExist(qid QueueID, f CallByQueue) (Result, error) {
-	return box.withLockRLockMustExist(qid, f, true)
-}
-
-func (box *QueueBox) withLockRLockMustExist(qid QueueID, f CallByQueue, lock bool) (Result, error) {
-	if lock {
-		box.Lock()
-		defer box.Unlock()
-	} else {
-		box.RLock()
-		defer box.RUnlock()
-	}
-	return box.mustExist(qid, f)
-}
-
-func (box *QueueBox) mustExist(qid QueueID, f CallByQueue) (result Result, err error) {
-	queue, ok := box.queues[qid]
-	if !ok {
-		err = NotExistError(qid.String())
-		return
-	}
-	return f(queue)
-}
-
-// DeleteIdleQueue TODO
-func (box *QueueBox) DeleteIdleQueue(qid QueueID) error {
-	_, e := box.withLockMustExist(qid,
-		func(queue *Queue) (result Result, err error) {
-			if queue.Idle() {
-				err = queue.SetStatus(QueueRemoved)
-			}
-			return
+// Load TODO
+func (box *QueueBox) Load() (err error) {
+	for _, p := range []struct {
+		opt  string
+		key  string
+		pat  string
+		qidf func(string) (sth.QueueID, error)
+	}{
+		{
+			"scan",
+			"",
+			RedisQueueKeyPrefix + "*",
+			QueueIDFromRedisKey,
 		},
-	)
-	return e
-}
+		{
+			"sscan",
+			RedisPausedQueuesKey,
+			"*",
+			QueueIDFromString,
+		},
+	} {
 
-// SyncQueue TODO
-func (box *QueueBox) SyncQueue(qid QueueID, force bool) (result Result, err error) {
-	box.RLock()
-
-	queue, ok := box.queues[qid]
-	if !ok {
-		if force {
-			queue, err = box.addQueue(qid)
-		} else {
-			err = NotExistError(qid.String())
-			box.RUnlock()
+		scanner := utils.NewScanner(box.core.Client(),
+			p.opt, p.key, p.pat, 1000)
+		log.Logger.Infof("load start %s %s %s", p.opt, p.key, p.pat)
+		err = box.load(scanner, p.qidf)
+		box.logLoad(err)
+		if err != nil {
 			return
 		}
 	}
-
-	if err == nil {
-		if ok {
-			result, err = queue.Sync()
-		}
-		idle := queue.Idle()
-		box.RUnlock()
-		if idle {
-			_ = box.DeleteIdleQueue(qid)
-		}
-	} else {
-		box.RUnlock()
-	}
-
 	return
 }
 
-// AddRequest TODO
-func (box *QueueBox) AddRequest(qid QueueID, req *request.Request) (result Result, err error) {
-	box.RLock()
-	queue, ok := box.queues[qid]
-	if !ok {
-		queue, err = box.addQueue(qid)
-	}
-
-	if err != nil {
-		box.RUnlock()
-		return
-	}
-
-	result, err = queue.Put(req)
-	box.RUnlock()
-	if err != nil {
-		switch err.(type) {
-		case UnavailableError:
-		default:
-			_ = box.DeleteIdleQueue(qid)
-		}
-	}
-	return
-}
-
-// GetRequest TODO
-func (box *QueueBox) GetRequest(qid QueueID) (req *request.Request, err error) {
-	box.RLock()
-	queue, ok := box.queues[qid]
-
-	if !ok {
-		err = NotExistError(qid.String())
-		box.RUnlock()
-		return
-	}
-
-	var qsize int64
-	req, qsize, err = queue.Get()
-	box.RUnlock()
-	if qsize <= 0 || err == redis.Nil {
-		_, _ = box.SyncQueue(qid, false)
-		if err == redis.Nil {
-			err = NotExistError(qid.String())
-		}
-	}
-	return
-}
-
-func (box *QueueBox) addQueue(qid QueueID) (queue *Queue, err error) {
-	box.cLocker.Lock()
-	defer box.cLocker.Unlock()
-
-	var ok bool
-	queue, ok = box.queues[qid]
-	if ok {
-		return
-	}
-	queue = NewQueue(box.pod, qid, QueueInit)
-	_, err = queue.Sync()
-	newStatus := QueueWorking
-	if err != nil {
-		newStatus = QueueRemoved
-	}
-	err = queue.SetStatusOn(newStatus, QueueInit)
-
-	return
-}
-
-// DeleteQueue TODO
-func (box *QueueBox) DeleteQueue(qid QueueID) (Result, error) {
-	return box.withLockMustExist(qid,
-		func(queue *Queue) (result Result, err error) {
-			result, err = queue.Clear()
-			if err == nil {
-				err = queue.SetStatus(QueueRemoved)
-				if err == nil {
-					result["status"] = queue.Status()
+func (box *QueueBox) load(scanner *utils.Scanner, keyToQueueID func(string) (sth.QueueID, error)) (err error) {
+	return scanner.Scan(
+		func(keys []string) (err error) {
+			for _, key := range keys {
+				err = box.core.SetStatus(serv.Preparing, true)
+				if err != nil {
+					break
+				}
+				qid, e := keyToQueueID(key)
+				if e != nil {
+					log.Logger.Warning(e)
+				} else {
+					err = box.addQueue(qid)
+					if err != nil {
+						break
+					}
 				}
 			}
 			return
@@ -283,79 +92,238 @@ func (box *QueueBox) DeleteQueue(qid QueueID) (Result, error) {
 	)
 }
 
-// ViewQueue TODO
-func (box *QueueBox) ViewQueue(qid QueueID, start int64, end int64) (result Result, err error) {
-	return box.withRLockMustExist(qid,
-		func(queue *Queue) (Result, error) {
-			return queue.View(start, end)
-		},
+func (box *QueueBox) logLoad(err error) {
+	loadQueues := map[QueueStatus]int{}
+	for status, queues := range box.statusQueues {
+		loadQueues[status] = queues.Size()
+	}
+	requestNum := box.stats.RequestNum()
+
+	logf := log.Logger.Infof
+	args := []interface{}{loadQueues, requestNum, "finish"}
+	if err != nil {
+		logf = log.Logger.Errorf
+		args[2] = err
+	}
+
+	logf("load queues %v, requests %d %s", args...)
+}
+
+func (box *QueueBox) addQueue(qid sth.QueueID) (err error) {
+	iid := qid.ItemID()
+	var item slicemap.Item
+	for _, status := range QueueStatusList {
+		item = box.statusQueues[status].Get(iid)
+		if item != nil {
+			return
+		}
+	}
+
+	newQueue := NewQueue(box, qid)
+	_, err = newQueue.Sync()
+	if err != nil {
+		return
+	}
+
+	box.statusQueues[newQueue.Status()].Add(newQueue)
+	return
+}
+
+func (box *QueueBox) withLockMustExist(qid sth.QueueID, f CallByQueue, rLock bool) (result sth.Result, err error) {
+	iid := qid.ItemID()
+	if rLock {
+		box.RLock(iid)
+		defer box.RUnlock(iid)
+	} else {
+		box.Lock(iid)
+		defer box.Unlock(iid)
+	}
+	var item slicemap.Item
+	for _, status := range QueueStatusList {
+		item = box.statusQueues[status].Get(iid)
+		if item != nil {
+			return f(item.(*Queue))
+		}
+	}
+	err = NotExistError(utils.Text(qid))
+	return
+}
+
+func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err error) {
+	qid := sth.QueueIDFromRequest(req)
+	iid := qid.ItemID()
+	workingQueues := box.statusQueues[Working]
+	pausedQueues := box.statusQueues[Paused]
+
+	box.RLock(iid)
+	workingQueues.View(iid, func(item slicemap.Item) {
+		if item == nil {
+			pausedQueues.View(iid, func(item slicemap.Item) {
+				if item != nil {
+					err = UnavailableError(utils.Text(qid))
+				}
+			})
+		} else {
+			queue := item.(*Queue)
+			result, err = queue.Push(req)
+		}
+	})
+	box.RUnlock(iid)
+
+	if result != nil || err != nil {
+		return
+	}
+
+	box.Lock(iid)
+	item := workingQueues.Get(iid)
+	if item != nil {
+		box.Unlock(iid)
+		return box.pushRequest(req)
+	}
+	item = pausedQueues.Get(iid)
+	if item != nil {
+		err = UnavailableError(utils.Text(qid))
+		box.Unlock(iid)
+		return
+	}
+	newQueue := NewQueue(box, qid)
+	_, err = newQueue.Sync()
+	if err != nil {
+		box.Unlock(iid)
+		return
+	}
+	if newQueue.Status() == Working {
+		result, err = newQueue.Push(req)
+		if err == nil || newQueue.QueueSize() > 0 {
+			workingQueues.Add(newQueue)
+		}
+	} else {
+		pausedQueues.Add(newQueue)
+		err = UnavailableError(utils.Text(qid))
+	}
+	box.Unlock(iid)
+	return
+}
+
+// PushRequest TODO
+func (box *QueueBox) PushRequest(raw *request.RawRequest) (result sth.Result, err error) {
+	req, err := request.NewRequest(raw)
+	if err == nil {
+		return box.pushRequest(req)
+	}
+	return
+}
+
+// PopRequest TODO
+func (box *QueueBox) PopRequest(qid sth.QueueID) (req *request.Request, err error) {
+	iid := qid.ItemID()
+	deleteIdle := false
+	workingQueues := box.statusQueues[Working]
+	pausedQueues := box.statusQueues[Paused]
+
+	box.RLock(iid)
+	workingQueues.View(iid, func(item slicemap.Item) {
+		if item == nil {
+			pausedQueues.View(iid, func(item slicemap.Item) {
+				reason := utils.Text(qid)
+				if item != nil {
+					err = UnavailableError(reason)
+				} else {
+					err = NotExistError(reason)
+				}
+			})
+		} else {
+			var qsize int64
+			queue := item.(*Queue)
+			req, qsize, err = queue.Pop()
+			if qsize <= 0 || err == redis.Nil {
+				deleteIdle = true
+			}
+		}
+	},
 	)
+	box.RUnlock(iid)
+
+	if !deleteIdle {
+		return
+	}
+	box.Lock(iid)
+	item := workingQueues.Get(iid)
+	if item == nil {
+		box.Unlock(iid)
+		return
+	}
+	queue := item.(*Queue)
+	_, e := queue.Sync()
+	if e != nil {
+		box.Unlock(iid)
+		return
+	}
+	if queue.Status() != Working || queue.QueueSize() <= 0 {
+		workingQueues.Delete(iid)
+		if queue.Status() == Paused {
+			pausedQueues.Add(queue)
+		}
+	}
+	box.Unlock(iid)
+	return
 }
 
 // ClearQueue TODO
-func (box *QueueBox) ClearQueue(qid QueueID) (Result, error) {
-	return box.withRLockMustExist(qid,
-		func(queue *Queue) (Result, error) {
-			return queue.Clear()
-		},
-	)
-}
-
-// SetStatus TODO
-func (box *QueueBox) SetStatus(qid QueueID, newStatus QueueStatus) (Result, error) {
+func (box *QueueBox) ClearQueue(qid sth.QueueID) (sth.Result, error) {
 	return box.withLockMustExist(qid,
-		func(queue *Queue) (result Result, err error) {
-			err = queue.SetStatus(newStatus)
-			if err == nil {
-				result = queue.Info()
-			}
-			return
-		},
-	)
+		func(queue *Queue) (sth.Result, error) {
+			return queue.Clear(false)
+		}, false)
 }
 
-// QueueInfo TODO
-func (box *QueueBox) QueueInfo(qid QueueID) (Result, error) {
-	return box.withRLockMustExist(qid,
-		func(queue *Queue) (result Result, err error) {
-			result = queue.Info()
+// DeleteQueue TODO
+func (box *QueueBox) DeleteQueue(qid sth.QueueID) (sth.Result, error) {
+	return box.withLockMustExist(qid,
+		func(queue *Queue) (result sth.Result, err error) {
+			iid := qid.ItemID()
+			result, err = queue.Clear(true)
+			box.statusQueues[queue.Status()].Delete(iid)
 			return
-		},
-	)
+		}, false)
 }
 
-func (box *QueueBox) fillQueues(iter slicemap.Iterator) []Result {
-	out := []Result{}
+// ViewQueue TODO
+func (box *QueueBox) ViewQueue(qid sth.QueueID, start int64, end int64) (result sth.Result, err error) {
+	return box.withLockMustExist(qid,
+		func(queue *Queue) (sth.Result, error) {
+			return queue.View(start, end)
+		}, true)
+}
+
+func (box *QueueBox) fillQueues(iter slicemap.Iterator) []sth.Result {
+	out := []sth.Result{}
 	iter.Iter(
-		func(item slicemap.Item) {
-			qid := item.(QueueID)
-			queue, ok := box.queues[qid]
-			if ok {
-				r := Result{"qid": qid, "qsize": queue.QueueSize()}
-				out = append(out, r)
-			}
+		func(item slicemap.Item) bool {
+			queue := item.(*Queue)
+			r := sth.Result{"qid": queue.ID(), "qsize": queue.QueueSize()}
+			out = append(out, r)
+			return true
 		},
 	)
 	return out
 }
 
 // ViewQueues TODO
-func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
-	box.RLock()
-	defer box.RUnlock()
-	queueIDs := box.statusQueueIDs[status]
-	l := queueIDs.Size()
-	var out []Result
+func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) sth.Result {
+	queues := box.statusQueues[status]
+	l := queues.Size()
+	var out []sth.Result
 	if l <= 0 || k <= 0 {
-		out = []Result{}
+		out = []sth.Result{}
 	} else {
 		if start < 0 {
 			start = 0
 		}
-		iterator := slicemap.NewSubIter(queueIDs, start, k)
+		iterator := slicemap.NewSubIter(queues.Map, start, k)
 		out = box.fillQueues(iterator)
 	}
-	return Result{
+	return sth.Result{
 		"k":      k,
 		"start":  start,
 		"queues": out,
@@ -366,19 +334,17 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) Result {
 }
 
 // Queues TODO
-func (box *QueueBox) Queues(k int) Result {
-	box.RLock()
-	defer box.RUnlock()
-	queueIDs := box.statusQueueIDs[QueueWorking]
-	l := queueIDs.Size()
-	var out []Result
+func (box *QueueBox) Queues(k int) sth.Result {
+	queues := box.statusQueues[Working]
+	l := queues.Size()
+	var out []sth.Result
 	if l <= 0 || k <= 0 {
-		out = []Result{}
+		out = []sth.Result{}
 	} else {
-		iterator := slicemap.NewRandomKIter(queueIDs, k)
+		iterator := slicemap.NewRandomKIter(queues.Map, k)
 		out = box.fillQueues(iterator)
 	}
-	return Result{
+	return sth.Result{
 		"k":      k,
 		"queues": out,
 		"count":  len(out),
@@ -386,31 +352,57 @@ func (box *QueueBox) Queues(k int) Result {
 	}
 }
 
-// QueuesCount TODO
-func (box *QueueBox) QueuesCount(status QueueStatus) int {
-	box.Lock()
-	defer box.Unlock()
-	if status == QueueInit {
-		return len(box.queues)
-	}
-	return box.statusQueueIDs[status].Size()
-}
-
-func (box *QueueBox) info() (result Result) {
-	r := Result{}
-	for k, v := range box.statusQueueIDs {
-		r[utils.Text(k)] = v.Size()
-	}
-	result = Result{
-		"total":      len(box.queues),
-		"status_num": r,
-	}
-	return
-}
-
 // Info TODO
-func (box *QueueBox) Info() (result Result) {
-	box.RLock()
-	defer box.RUnlock()
-	return box.info()
+func (box *QueueBox) Info() (result sth.Result) {
+	return nil
+}
+
+// QueueInfo TODO
+func (box *QueueBox) QueueInfo(qid sth.QueueID) (sth.Result, error) {
+	return nil, nil
+}
+
+// PauseQueue TODO
+func (box *QueueBox) PauseQueue(qid sth.QueueID) (sth.Result, error) {
+	return box.SetStatus(qid, Paused)
+}
+
+// SetStatus TODO
+func (box *QueueBox) SetStatus(qid sth.QueueID, newStatus QueueStatus) (sth.Result, error) {
+	return box.withLockMustExist(qid,
+		func(queue *Queue) (result sth.Result, err error) {
+			oldStatus := queue.Status()
+			if oldStatus != newStatus {
+				iid := queue.ID().ItemID()
+				err = queue.SetStatus(newStatus)
+				if err == nil {
+					box.statusQueues[oldStatus].Delete(iid)
+					box.statusQueues[newStatus].Add(queue)
+				}
+			}
+			result = queue.Info()
+			return
+		}, false)
+}
+
+// ResumeQueue TODO
+func (box *QueueBox) ResumeQueue(qid sth.QueueID) (sth.Result, error) {
+	return box.SetStatus(qid, Working)
+}
+
+// SyncQueue TODO
+func (box *QueueBox) SyncQueue(qid sth.QueueID, force bool) (sth.Result, error) {
+	return box.withLockMustExist(qid,
+		func(queue *Queue) (result sth.Result, err error) {
+			oldStatus := queue.Status()
+			result, err = queue.Sync()
+			if err == nil {
+				iid := queue.ID().ItemID()
+				if oldStatus != queue.Status() {
+					box.statusQueues[oldStatus].Delete(iid)
+					box.statusQueues[queue.Status()].Add(queue)
+				}
+			}
+			return
+		}, false)
 }

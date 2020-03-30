@@ -5,121 +5,53 @@ import (
 	"time"
 )
 
+// IterFunc TODO
+type IterFunc func(Item) bool
+
 // Iterator TODO
 type Iterator interface {
-	Iter(func(Item))
-	Break()
+	Iter(IterFunc)
 }
 
-// FastIter TODO
-type FastIter struct {
-	m *Map
-	b bool
+// BaseIter TODO
+type BaseIter struct {
+	*Map
 }
 
 // Iter TODO
-func (iter *FastIter) Iter(f func(Item)) {
-	iter.m.RLock()
-	defer iter.m.RUnlock()
-	for _, item := range iter.m.items {
-		if item == nil {
-			break
-		}
-		f(item)
-		if iter.b {
-			iter.b = false
+func (iter *BaseIter) Iter(f IterFunc) {
+	iter.RLock()
+	defer iter.RUnlock()
+	for i := 0; i < iter.maxIdx; i++ {
+		if !f(iter.items[i]) {
 			break
 		}
 	}
 }
 
-// Break TODO
-func (iter *FastIter) Break() {
-	iter.b = true
-}
-
-// NewFastIter TODO
-func NewFastIter(m *Map) *FastIter {
-	return &FastIter{m, false}
-}
-
-// DeleteSafeIter TODO
-type DeleteSafeIter struct {
-	m *Map
-	b bool
-}
-
-// Break TODO
-func (iter *DeleteSafeIter) Break() {
-	iter.b = true
-}
-
-// NewDeleteSafeIter TODO
-func NewDeleteSafeIter(m *Map) *DeleteSafeIter {
-	return &DeleteSafeIter{m, false}
-}
-
-// Iter TODO
-func (iter *DeleteSafeIter) Iter(f func(Item)) {
-	iter.m.RLock()
-	defer iter.m.RUnlock()
-	iter.iter(f)
-}
-
-func (iter *DeleteSafeIter) iter(f func(Item)) {
-	m := iter.m
-	i := 0
-	for _, item := range m.items {
-		if item == nil {
-			break
-		}
-		f(item)
-		if iter.b {
-			iter.b = false
-			break
-		}
-		if i < len(m.items) {
-			newItem := m.items[i]
-			for newItem != nil && newItem.ItemID() != item.ItemID() {
-				f(newItem)
-				if iter.b {
-					iter.b = false
-					break
-				}
-				item = newItem
-				if i < len(m.items) {
-					newItem = m.items[i]
-				}
-			}
-		}
-		i++
-	}
+// NewBaseIter TODO
+func NewBaseIter(m *Map) *BaseIter {
+	return &BaseIter{m}
 }
 
 // SubIter TODO
 type SubIter struct {
-	m     *Map
+	*Map
 	start int
 	n     int
-	b     bool
 }
 
 // NewSubIter TODO
 func NewSubIter(m *Map, start, n int) *SubIter {
-	return &SubIter{m, start, n, false}
-}
-
-// Break TODO
-func (iter *SubIter) Break() {
-	iter.b = true
+	return &SubIter{m, start, n}
 }
 
 // Iter TODO
-func (iter *SubIter) Iter(f func(Item)) {
-	iter.m.RLock()
-	defer iter.m.RUnlock()
+func (iter *SubIter) Iter(f IterFunc) {
+	iter.RLock()
+	defer iter.RUnlock()
 
-	l := len(iter.m.items)
+	l := iter.size()
 	if iter.start > l {
 		return
 	}
@@ -128,13 +60,8 @@ func (iter *SubIter) Iter(f func(Item)) {
 		end = l
 	}
 
-	for _, item := range iter.m.items[iter.start:end] {
-		if item == nil {
-			break
-		}
-		f(item)
-		if iter.b {
-			iter.b = false
+	for i := iter.start; i < end; i++ {
+		if !f(iter.items[i]) {
 			break
 		}
 	}
@@ -142,37 +69,24 @@ func (iter *SubIter) Iter(f func(Item)) {
 
 // RandomKIter TODO
 type RandomKIter struct {
-	m *Map
+	*Map
 	r *rand.Rand
 	k int
-	b bool
 }
 
 // NewRandomKIter TODO
 func NewRandomKIter(m *Map, k int) *RandomKIter {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return &RandomKIter{m, r, k, false}
-}
-
-// Break TODO
-func (iter *RandomKIter) Break() {
-	iter.b = true
+	return &RandomKIter{m, r, k}
 }
 
 // Iter TODO
-func (iter *RandomKIter) Iter(f func(Item)) {
-	iter.m.RLock()
-	defer iter.m.RUnlock()
-	i := 0
-	shuffled := iter.r.Perm(iter.m.maxIdx)
-	for _, idx := range shuffled {
-		item := iter.m.items[idx]
-		if item == nil {
-			break
-		}
-		f(item)
-		if iter.b {
-			iter.b = false
+func (iter *RandomKIter) Iter(f IterFunc) {
+	iter.RLock()
+	defer iter.RUnlock()
+	shuffled := iter.r.Perm(iter.size())
+	for i := 0; i < iter.maxIdx; {
+		if !f(iter.items[shuffled[i]]) {
 			break
 		}
 		i++
@@ -184,50 +98,72 @@ func (iter *RandomKIter) Iter(f func(Item)) {
 
 // CycleIter TODO
 type CycleIter struct {
-	m     *Map
-	cur   int
-	steps int
-	b     bool
+	*Map
+	cur int
 }
 
 // NewCycleIter TODO
-func NewCycleIter(m *Map, start, steps int) *CycleIter {
-	return &CycleIter{m, start, steps, false}
+func NewCycleIter(m *Map, start int) *CycleIter {
+	return &CycleIter{m, start}
+}
+
+// Iter TODO
+func (iter *CycleIter) Iter(f IterFunc) {
+	iter.RLock()
+	defer iter.RUnlock()
+	l := iter.size()
+	if l <= 0 {
+		return
+	}
+	iter.cur = iter.cur % l
+
+	for i := 0; i < l; i++ {
+		b := f(iter.items[iter.cur])
+		iter.cur++
+		if iter.cur >= l {
+			iter.cur = 0
+		}
+		if !b {
+			break
+		}
+	}
+}
+
+// CycleStepIter TODO
+type CycleStepIter struct {
+	*Map
+	cur   int
+	steps int
+}
+
+// NewCycleStepIter TODO
+func NewCycleStepIter(m *Map, start, steps int) *CycleStepIter {
+	return &CycleStepIter{m, start, steps}
 }
 
 // SetSteps TODO
-func (iter *CycleIter) SetSteps(steps int) {
+func (iter *CycleStepIter) SetSteps(steps int) {
 	iter.steps = steps
 }
 
 // Iter TODO
-func (iter *CycleIter) Iter(f func(Item)) {
-	iter.m.RLock()
-	defer iter.m.RUnlock()
-	l := iter.m.Size()
+func (iter *CycleStepIter) Iter(f IterFunc) {
+	iter.RLock()
+	defer iter.RUnlock()
+	l := iter.size()
 	if l <= 0 {
 		return
 	}
 	iter.cur = iter.cur % l
 
 	for i := 0; i < iter.steps; i++ {
-		item := iter.m.items[iter.cur]
-		if item == nil {
-			break
-		}
-		f(item)
+		b := f(iter.items[iter.cur])
 		iter.cur++
 		if iter.cur >= l {
 			iter.cur = 0
 		}
-		if iter.b {
-			iter.b = false
+		if !b {
 			break
 		}
 	}
-}
-
-// Break TODO
-func (iter *CycleIter) Break() {
-	iter.b = true
 }

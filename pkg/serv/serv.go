@@ -1,6 +1,7 @@
 package serv
 
 import (
+	"os"
 	"sync"
 
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
@@ -41,11 +42,17 @@ func (serv *Serv) Status(lock bool) Status {
 
 // ProcessMemory TODO
 func (serv *Serv) ProcessMemory() *process.MemoryInfoStat {
-	mem, err := serv.process.MemoryInfo()
-	if err != nil {
-		return nil
-	}
-	return mem
+	return utils.MemoryInfo(serv.process)
+}
+
+// CPUPercent TODO
+func (serv *Serv) CPUPercent() float64 {
+	return utils.CPUPercent(serv.process)
+}
+
+// Getpid TODO
+func (serv *Serv) Getpid() int {
+	return os.Getpid()
 }
 
 // Conf TODO
@@ -59,7 +66,7 @@ func (serv *Serv) setStatus(newStatus Status) (err error) {
 	if oldStatus == newStatus {
 		return
 	}
-	e := &StatusTransError{oldStatus, newStatus}
+	e := &StatusChangeError{oldStatus, newStatus}
 	switch serv.status {
 	case Init:
 		switch newStatus {
@@ -117,8 +124,7 @@ func (serv *Serv) SetStatus(newStatus Status, lock bool) (err error) {
 	_, err = serv.DoWithLock(
 		func() (interface{}, error) {
 			return nil, serv.setStatus(newStatus)
-		},
-		false)
+		}, false)
 	return
 }
 
@@ -142,6 +148,5 @@ func (serv *Serv) DoWithLockOnWorkStatus(f func() (interface{}, error), rLock bo
 		}
 		return f()
 
-	},
-		rLock)
+	}, rLock)
 }

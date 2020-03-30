@@ -16,17 +16,17 @@ type StatusError struct {
 }
 
 func (e *StatusError) Error() string {
-	return fmt.Sprintf("invalid %s", e.status)
+	return fmt.Sprintf("bad status %s", e.status)
 }
 
-// StatusTransError TODO
-type StatusTransError struct {
+// StatusChangeError TODO
+type StatusChangeError struct {
 	from Status
 	to   Status
 }
 
-func (e *StatusTransError) Error() string {
-	return fmt.Sprintf("can not from %s to %s", e.from, e.to)
+func (e *StatusChangeError) Error() string {
+	return fmt.Sprintf("can't change from %s to %s", e.from, e.to)
 }
 
 // Status type

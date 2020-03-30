@@ -8,7 +8,7 @@ import (
 )
 
 // InitAPIRouter TODO
-func InitAPIRouter(g ginserv.RouterGroup, pod *core.Pod) {
+func InitAPIRouter(g ginserv.RouterGroup, pod *core.Core) {
 
 	routers := []struct {
 		HTTPFunc ginserv.IRoutesHTTPFunc
@@ -26,8 +26,8 @@ func InitAPIRouter(g ginserv.RouterGroup, pod *core.Pod) {
 		{g.POST, "/queues/", controller.Queues},
 		{g.GET, "/queues/view/", controller.ViewQueues},
 
-		{g.POST, "/request/push/", controller.AddRequest},
-		{g.POST, "/request/pop/", controller.GetRequest},
+		{g.POST, "/request/push/", controller.PushRequest},
+		{g.POST, "/request/pop/", controller.PopRequest},
 
 		{g.GET, "/system/info/", controller.Info},
 		{g.GET, "/system/info/process/memory/", controller.ProcessMemory},
