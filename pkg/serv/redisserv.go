@@ -1,6 +1,7 @@
 package serv
 
 import (
+	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/go-redis/redis/v7"
 	"github.com/spf13/viper"
 )
@@ -17,8 +18,10 @@ func NewRedisServ(conf *viper.Viper, client *redis.Client) *RedisServ {
 }
 
 // RedisInfo TODO
-func (serv *RedisServ) RedisInfo(section ...string) (string, error) {
-	return serv.redis.Info(section...).Result()
+func (serv *RedisServ) RedisInfo(section ...string) (interface{}, error) {
+	info, err := serv.redis.Info(section...).Result()
+	parsed := utils.ParseRedisInfo(info)
+	return parsed, err
 }
 
 // Client TODO
