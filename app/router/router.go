@@ -31,7 +31,6 @@ func InitAPIRouter(g ginserv.RouterGroup, pod *core.Core) {
 
 		{g.GET, "/system/info/", controller.Info},
 		{g.GET, "/system/info/process/memory/", controller.ProcessMemory},
-		{g.GET, "/system/info/redis/memory/", controller.RedisMemory},
 		{g.GET, "/system/info/redis/", controller.RedisInfo},
 
 		{g.POST, "/system/ctrl/pause/", controller.Pause},

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/sth"
@@ -12,30 +13,6 @@ import (
 	core "github.com/cfhamlet/os-rq-pod/pod"
 	"github.com/gin-gonic/gin"
 )
-
-// QueueIDFromQuery TODO
-func QueueIDFromQuery(q string) (qid sth.QueueID, err error) {
-	if strings.Contains(q, "://") {
-		p, err := utils.NewParsedURL(q)
-		if err == nil {
-			qid = sth.CreateQueueID(p.Host, p.Port, p.Parsed.Scheme)
-		}
-	} else {
-		s := strings.Split(q, ":")
-		switch len(s) {
-		case 1:
-			qid = sth.CreateQueueID(q, "", "http")
-		case 2:
-			qid = sth.CreateQueueID(s[0], s[1], "http")
-		case 3: // QueueID
-			qid = sth.CreateQueueID(s[0], s[1], s[2])
-		default:
-			err = InvalidQuery(fmt.Sprintf("%q", q))
-		}
-	}
-
-	return
-}
 
 // PushRequest TODO
 func PushRequest(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
@@ -50,9 +27,6 @@ func PushRequest(c *gin.Context, serv *core.Core) (result sth.Result, err error)
 	c.Header("Access-Control-Allow-Origin", "*")
 	return
 }
-
-// CallByQueueID TODO
-type CallByQueueID func(sth.QueueID) (sth.Result, error)
 
 // Resume TODO
 func Resume(c *gin.Context, serv *core.Core) (sth.Result, error) {
@@ -157,16 +131,16 @@ func ViewQueue(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
 	)
 }
 
-// RedisMemory TODO
-func RedisMemory(c *gin.Context, serv *core.Core) (sth.Result, error) {
-	info, err := serv.RedisInfo("memory")
-	return sth.Result{"memory": info}, err
-}
-
 // RedisInfo TODO
 func RedisInfo(c *gin.Context, serv *core.Core) (sth.Result, error) {
-	info, err := serv.RedisInfo()
-	return sth.Result{"info": info}, err
+	t := time.Now()
+	s := c.DefaultQuery("section", "")
+	var section []string
+	if s != "" {
+		section = strings.Split(s, ",")
+	}
+	info, err := serv.RedisInfo(section...)
+	return sth.Result{"info": info, "_cost_ms_": utils.SinceMS(t)}, err
 }
 
 // ProcessMemory TODO
