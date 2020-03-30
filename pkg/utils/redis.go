@@ -40,7 +40,42 @@ func NewRedisClient(conf *viper.Viper) (*redis.Client, error) {
 }
 
 // ParseRedisInfo TODO
-func ParseRedisInfo(info string, key string) (string, string) {
+func ParseRedisInfo(info string) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	var b map[string]string
+	e := -1
+	for len(info) > 0 {
+		if strings.HasPrefix(info, "# ") {
+			e = strings.Index(info, "\n")
+			if e > 0 {
+				s := strings.Index(info[:e], " ")
+				if s > 0 {
+					k := strings.ToLower(strings.TrimSpace(info[s:e]))
+					b = map[string]string{}
+					out[k] = b
+				}
+			}
+		} else {
+			e = strings.Index(info, "\n")
+			if e > 0 {
+				t := strings.Index(info[:e], ":")
+				if t > 0 {
+					key := strings.TrimSpace(info[:t])
+					value := strings.TrimSpace(info[t+1 : e])
+					b[key] = value
+				}
+			}
+		}
+		if e < 0 {
+			break
+		}
+		info = info[e+1:]
+	}
+	return out
+}
+
+// ExtractRedisInfo TODO
+func ExtractRedisInfo(info string, key string) (string, string) {
 	t := strings.Index(info, key)
 	if t < 0 {
 		return "", ""
