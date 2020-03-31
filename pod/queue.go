@@ -2,7 +2,6 @@ package pod
 
 import (
 	"fmt"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -57,33 +56,6 @@ func (queue *Queue) ItemID() uint64 {
 	return queue.id.ItemID()
 }
 
-// RedisKeyFromQueueID TODO
-func RedisKeyFromQueueID(qid sth.QueueID) string {
-	return RedisQueueKeyPrefix + qid.String()
-}
-
-// QueueIDFromString TODO
-func QueueIDFromString(key string) (qid sth.QueueID, err error) {
-	parts := strings.Split(key, ":")
-	if len(parts) != 3 {
-		err = fmt.Errorf(`invalid qid %s, not "host:port:scheme"`, key)
-	} else {
-		qid = sth.QueueID{Host: parts[0], Port: parts[1], Scheme: parts[2]}
-	}
-	return
-}
-
-// QueueIDFromRedisKey TODO
-func QueueIDFromRedisKey(key string) (qid sth.QueueID, err error) {
-	if !strings.HasPrefix(key, RedisQueueKeyPrefix) {
-		err = fmt.Errorf(`invalid redis key %s, not starts with "%s"`, key, RedisQueueKeyPrefix)
-	} else {
-		qid, err = QueueIDFromString(key[len(RedisQueueKeyPrefix):])
-	}
-
-	return
-}
-
 // NewQueue TODO
 func NewQueue(box *QueueBox, id sth.QueueID) *Queue {
 	return &Queue{
@@ -91,9 +63,7 @@ func NewQueue(box *QueueBox, id sth.QueueID) *Queue {
 		id,
 		RedisKeyFromQueueID(id),
 		Working,
-		0,
-		0,
-		0,
+		0, 0, 0,
 	}
 }
 
@@ -139,10 +109,8 @@ func (queue *Queue) Sync() (result sth.Result, err error) {
 	if paused {
 		queue.status = Paused
 	}
-	if err == nil {
-		result["ostatus"] = oldStatus
-		result["status"] = queue.status
-	}
+	result["ostatus"] = oldStatus
+	result["status"] = queue.status
 	return
 }
 
@@ -199,7 +167,7 @@ func (queue *Queue) Push(request *request.Request) (result sth.Result, err error
 	defer queue.decrQueuing(1)
 
 	if queuing > 198405 {
-		err = UnavailableError(fmt.Sprintf("%s too many put requests %d", queue.ID(), queuing))
+		err = UnavailableError(fmt.Sprintf("%s too many push requests %d", queue.ID(), queuing))
 		return
 	}
 
@@ -257,13 +225,10 @@ func (queue *Queue) metaInfo() sth.Result {
 // View TODO
 func (queue *Queue) View(start int64, end int64) (result sth.Result, err error) {
 
-	result, err = queue.Sync()
-	if err != nil {
-		return
-	}
 	t := time.Now()
 	var requests []string
 	requests, err = queue.box.core.Client().LRange(queue.redisKey, start, end).Result()
+	result = sth.Result{}
 	result["redis"] = sth.Result{
 		"_cost_ms_": utils.SinceMS(t),
 	}
@@ -291,6 +256,9 @@ func (queue *Queue) Clear(erase bool) (result sth.Result, err error) {
 		}
 		if e == nil && drop != 0 {
 			result["drop"] = drop
+		}
+		if e == nil && erase {
+			_, e = tx.SRem(RedisPausedQueuesKey, queue.ID().String()).Result()
 		}
 		return e
 	}, queue.redisKey)
