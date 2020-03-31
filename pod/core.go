@@ -1,12 +1,9 @@
 package pod
 
 import (
-	"time"
-
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/serv"
 	"github.com/cfhamlet/os-rq-pod/pkg/sth"
-	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/go-redis/redis/v7"
 	"github.com/spf13/viper"
 )
@@ -64,52 +61,13 @@ func (core *Core) OnStop() error {
 	return err
 }
 
-// metaInfo TODO
-func (core *Core) metaInfo() (result sth.Result) {
-	return sth.Result{
-		"stats":  core.QueueBox.Info(),
-		"status": core.Status(false),
-		"process": sth.Result{
-			"pid":    core.Getpid(),
-			"memory": core.ProcessMemory(),
-			"cpu": sth.Result{
-				"percent": core.CPUPercent(),
-			},
-		},
-	}
-}
-
 // Info TODO
 func (core *Core) Info() (sth.Result, error) {
 	result, err := core.DoWithLock(
 		func() (interface{}, error) {
-			result := core.metaInfo()
-			t := time.Now()
-			r, err := core.RedisInfo()
-			rinfo := sth.Result{
-				"info":      r,
-				"_cost_ms_": utils.SinceMS(t),
-			}
-			result["redis"] = rinfo
+			result, err := core.MetaInfo()
+			result["stats"] = core.QueueBox.Info()
 			return result, err
-
 		}, true)
-	return result.(sth.Result), err
-}
-
-// Switch TODO
-func (core *Core) Switch(pauseOrResume bool) (sth.Result, error) {
-	result, err := core.DoWithLockOnWorkStatus(
-		func() (result interface{}, err error) {
-			status := serv.Working
-			if !pauseOrResume {
-				status = serv.Paused
-			}
-			err = core.SetStatus(status, false)
-			if err == nil {
-				result = core.metaInfo()
-			}
-			return
-		}, false, false)
 	return result.(sth.Result), err
 }
