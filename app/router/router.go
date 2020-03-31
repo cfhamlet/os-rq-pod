@@ -8,38 +8,30 @@ import (
 )
 
 // InitAPIRouter TODO
-func InitAPIRouter(g ginserv.RouterGroup, pod *core.Core) {
+func InitAPIRouter(g ginserv.RouterGroup, serv *core.Core) {
+	ctrl := controller.New(serv)
+	routers := []ginserv.RouterRecord{
+		{M: g.GET, P: "/queue/info/", H: ctrl.QueueInfo},
+		{M: g.GET, P: "/queue/view/", H: ctrl.ViewQueue},
+		{M: g.POST, P: "/queue/pause/", H: ctrl.PauseQueue},
+		{M: g.POST, P: "/queue/resume/", H: ctrl.ResumeQueue},
+		{M: g.POST, P: "/queue/clear/", H: ctrl.ClearQueue},
+		{M: g.POST, P: "/queue/sync/", H: ctrl.SyncQueue},
+		{M: g.DELETE, P: "/queue/", H: ctrl.DeleteQueue},
 
-	routers := []struct {
-		HTTPFunc ginserv.IRoutesHTTPFunc
-		Path     string
-		F        controller.CtrlFunc
-	}{
-		{g.GET, "/queue/info/", controller.QueueInfo},
-		{g.GET, "/queue/view/", controller.ViewQueue},
-		{g.POST, "/queue/pause/", controller.PauseQueue},
-		{g.POST, "/queue/resume/", controller.ResumeQueue},
-		{g.POST, "/queue/clear/", controller.ClearQueue},
-		{g.POST, "/queue/sync/", controller.SyncQueue},
-		{g.DELETE, "/queue/", controller.DeleteQueue},
+		{M: g.POST, P: "/queues/", H: ctrl.Queues},
+		{M: g.GET, P: "/queues/view/", H: ctrl.ViewQueues},
 
-		{g.POST, "/queues/", controller.Queues},
-		{g.GET, "/queues/view/", controller.ViewQueues},
+		{M: g.POST, P: "/request/push/", H: ctrl.PushRequest},
+		{M: g.POST, P: "/request/pop/", H: ctrl.PopRequest},
 
-		{g.POST, "/request/push/", controller.PushRequest},
-		{g.POST, "/request/pop/", controller.PopRequest},
+		{M: g.GET, P: "/system/info/", H: ctrl.Info},
+		{M: g.GET, P: "/system/info/process/memory/", H: ctrl.ProcessMemory},
+		{M: g.GET, P: "/system/info/redis/", H: ctrl.RedisInfo},
 
-		{g.GET, "/system/info/", controller.Info},
-		{g.GET, "/system/info/process/memory/", controller.ProcessMemory},
-		{g.GET, "/system/info/redis/", controller.RedisInfo},
-
-		{g.POST, "/system/ctrl/pause/", controller.Pause},
-		{g.POST, "/system/ctrl/resume/", controller.Resume},
+		{M: g.POST, P: "/system/ctrl/pause/", H: ctrl.Pause},
+		{M: g.POST, P: "/system/ctrl/resume/", H: ctrl.Resume},
 	}
 
-	wp := controller.NewHandlerWrapper(pod)
-
-	for _, r := range routers {
-		r.HTTPFunc(r.Path, wp.Wrap(r.F))
-	}
+	ginserv.Bind(routers, controller.ErrorCode)
 }
