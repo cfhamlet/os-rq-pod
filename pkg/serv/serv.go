@@ -141,9 +141,10 @@ func (serv *Serv) DoWithLock(f func() (interface{}, error), rLock bool) (interfa
 }
 
 // DoWithLockOnWorkStatus TODO
-func (serv *Serv) DoWithLockOnWorkStatus(f func() (interface{}, error), rLock bool) (interface{}, error) {
+func (serv *Serv) DoWithLockOnWorkStatus(f func() (interface{}, error), rLock bool, mustWorking bool) (interface{}, error) {
 	return serv.DoWithLock(func() (interface{}, error) {
-		if !WorkStatus(serv.Status(false)) {
+		if !WorkStatus(serv.Status(false)) ||
+			(mustWorking && serv.Status(false) != Working) {
 			return nil, &StatusError{serv.Status(false)}
 		}
 		return f()
