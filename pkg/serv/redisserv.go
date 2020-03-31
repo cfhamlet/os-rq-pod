@@ -18,7 +18,7 @@ func NewRedisServ(conf *viper.Viper, client *redis.Client) *RedisServ {
 }
 
 // RedisInfo TODO
-func (serv *RedisServ) RedisInfo(section ...string) (interface{}, error) {
+func (serv *RedisServ) RedisInfo(section ...string) (utils.ParsedRedisInfo, error) {
 	info, err := serv.redis.Info(section...).Result()
 	parsed := utils.ParseRedisInfo(info)
 	return parsed, err
