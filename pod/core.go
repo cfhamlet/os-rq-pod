@@ -85,12 +85,12 @@ func (core *Core) Info() (sth.Result, error) {
 		func() (interface{}, error) {
 			result := core.metaInfo()
 			t := time.Now()
-			mem, err := core.RedisInfo("memory")
-			r := sth.Result{"_cost_ms_": utils.SinceMS(t)}
-			if err == nil {
-				r["memory"] = mem
+			r, err := core.RedisInfo()
+			rinfo := sth.Result{
+				"info":      r,
+				"_cost_ms_": utils.SinceMS(t),
 			}
-			result["redis"] = r
+			result["redis"] = rinfo
 			return result, err
 
 		}, true)
@@ -110,6 +110,6 @@ func (core *Core) Switch(pauseOrResume bool) (sth.Result, error) {
 				result = core.metaInfo()
 			}
 			return
-		}, false)
+		}, false, false)
 	return result.(sth.Result), err
 }
