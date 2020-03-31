@@ -39,9 +39,12 @@ func NewRedisClient(conf *viper.Viper) (*redis.Client, error) {
 	return client, err
 }
 
+// ParsedRedisInfo TODO
+type ParsedRedisInfo map[string]map[string]string
+
 // ParseRedisInfo TODO
-func ParseRedisInfo(info string) map[string]map[string]string {
-	out := map[string]map[string]string{}
+func ParseRedisInfo(info string) ParsedRedisInfo {
+	out := ParsedRedisInfo{}
 	var b map[string]string
 	e := -1
 	for len(info) > 0 {
