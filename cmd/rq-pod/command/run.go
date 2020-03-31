@@ -36,7 +36,7 @@ func run(conf *viper.Viper) {
 			runner.New,
 			newConfig,
 			utils.NewRedisClient,
-			core.NewPod,
+			core.New,
 			ginserv.NewEngine,
 			ginserv.NewServer,
 			ginserv.NewAPIGroup,
