@@ -9,6 +9,13 @@ func (e NotExistError) Error() string {
 	return fmt.Sprintf("not exist %s", string(e))
 }
 
+// ExistError TODO
+type ExistError string
+
+func (e ExistError) Error() string {
+	return fmt.Sprintf("already exist %s", string(e))
+}
+
 // UnavailableError TODO
 type UnavailableError string
 
