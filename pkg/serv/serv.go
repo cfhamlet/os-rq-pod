@@ -4,6 +4,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/shirou/gopsutil/process"
 	"github.com/spf13/viper"
@@ -150,4 +151,35 @@ func (serv *Serv) DoWithLockOnWorkStatus(f func() (interface{}, error), rLock bo
 		return f()
 
 	}, rLock)
+}
+
+// MetaInfo TODO
+func (serv *Serv) MetaInfo() (result sth.Result) {
+	return sth.Result{
+		"status": serv.Status(false),
+		"process": sth.Result{
+			"pid":    serv.Getpid(),
+			"memory": serv.ProcessMemory(),
+			"cpu": sth.Result{
+				"percent": serv.CPUPercent(),
+			},
+		},
+	}
+}
+
+// Switch TODO
+func (serv *Serv) Switch(pauseOrResume bool) (sth.Result, error) {
+	result, err := serv.DoWithLockOnWorkStatus(
+		func() (result interface{}, err error) {
+			status := Working
+			if !pauseOrResume {
+				status = Paused
+			}
+			err = serv.SetStatus(status, false)
+			if err == nil {
+				result = serv.MetaInfo()
+			}
+			return
+		}, false, false)
+	return result.(sth.Result), err
 }
