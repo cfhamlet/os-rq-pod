@@ -32,6 +32,16 @@ func New(conf *viper.Viper) *Serv {
 	}
 }
 
+// OnStart TODO
+func (serv *Serv) OnStart() error {
+	return nil
+}
+
+// OnStop TODO
+func (serv *Serv) OnStop() error {
+	return nil
+}
+
 // Status TODO
 func (serv *Serv) Status(lock bool) Status {
 	if lock {

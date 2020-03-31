@@ -3,15 +3,10 @@ package runner
 import (
 	"context"
 
+	"github.com/cfhamlet/os-rq-pod/pkg/serv"
 	messagebus "github.com/vardius/message-bus"
 	"go.uber.org/fx"
 )
-
-// ServeFlow TODO
-type ServeFlow interface {
-	OnStart() error
-	OnStop() error
-}
 
 // Runner TODO
 type Runner struct {
@@ -50,7 +45,7 @@ func (runner *Runner) WaitFail() chan error {
 }
 
 // ServeFlowLifecycle TODO
-func ServeFlowLifecycle(lc fx.Lifecycle, serv ServeFlow, runner *Runner) {
+func ServeFlowLifecycle(lc fx.Lifecycle, serv serv.IServ, runner *Runner) {
 	lc.Append(
 		fx.Hook{
 			OnStart: func(context.Context) error {
