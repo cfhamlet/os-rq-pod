@@ -2,123 +2,84 @@ package pod
 
 import (
 	"fmt"
-	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cfhamlet/os-rq-pod/pkg/json"
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
+	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/go-redis/redis/v7"
-	"github.com/segmentio/fasthash/fnv1a"
 )
-
-// QueueID TODO
-type QueueID struct {
-	Host   string `json:"host"`
-	Port   string `json:"port"`
-	Scheme string `json:"scheme"`
-}
-
-func (qid QueueID) String() string {
-	return strings.Join([]string{qid.Host, qid.Port, qid.Scheme}, ":")
-}
-
-// ItemID TODO
-func (qid QueueID) ItemID() uint64 {
-	return fnv1a.HashString64(qid.String())
-}
-
-// MarshalJSON TODO
-func (qid QueueID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(qid.String())
-}
 
 // Queue TODO
 type Queue struct {
-	pod      *Pod
-	ID       QueueID
-	status   QueueStatus
-	redisKey string
-	qsize    int64
-	*sync.RWMutex
-	createTime time.Time
-	queuing    int64
-	dequeuing  int64
+	box       *QueueBox
+	id        sth.QueueID
+	redisKey  string
+	status    QueueStatus
+	qsize     int64
+	queuing   int64
+	dequeuing int64
 }
 
-// RedisKeyFromQueueID TODO
-func RedisKeyFromQueueID(qid QueueID) string {
-	return RedisQueueKeyPrefix + qid.String()
+// Status TODO
+func (queue *Queue) Status() QueueStatus {
+	return queue.status
 }
 
-// QueueIDFromString TODO
-func QueueIDFromString(key string) (qid QueueID, err error) {
-	parts := strings.Split(key, ":")
-	if len(parts) != 3 {
-		err = fmt.Errorf(`invalid qid %s, not "host:port:scheme"`, key)
-	} else {
-		qid = QueueID{parts[0], parts[1], parts[2]}
+// SetStatus TODO
+func (queue *Queue) SetStatus(newStatus QueueStatus) (err error) {
+	oldStatus := queue.status
+	if oldStatus == newStatus {
+		return
+	}
+	f := queue.box.core.Client().SAdd
+	if oldStatus == Paused {
+		f = queue.box.core.Client().SRem
+	}
+	_, err = f(RedisPausedQueuesKey, queue.ID().String()).Result()
+	if err == nil {
+		queue.status = newStatus
 	}
 	return
 }
 
-// QueueIDFromRedisKey TODO
-func QueueIDFromRedisKey(key string) (qid QueueID, err error) {
-	if !strings.HasPrefix(key, RedisQueueKeyPrefix) {
-		err = fmt.Errorf(`invalid redis key %s, not starts with "%s"`, key, RedisQueueKeyPrefix)
-	} else {
-		qid, err = QueueIDFromString(key[len(RedisQueueKeyPrefix):])
-	}
-
-	return
+// ID TODO
+func (queue *Queue) ID() sth.QueueID {
+	return queue.id
 }
 
-// QueueIDFromRequest TODO
-func QueueIDFromRequest(req *request.Request) QueueID {
-	return CreateQueueID(req.Host, req.Port, req.Parsed.Scheme)
-}
-
-// CreateQueueID TODO
-func CreateQueueID(host, port, scheme string) QueueID {
-	defaultPort, ok := utils.DefaultSchemePort[scheme]
-	if ok {
-		if defaultPort == port {
-			port = ""
-		}
-	}
-	return QueueID{Host: host, Port: port, Scheme: scheme}
+// ItemID TODO
+func (queue *Queue) ItemID() uint64 {
+	return queue.id.ItemID()
 }
 
 // NewQueue TODO
-func NewQueue(pod *Pod, id QueueID, status QueueStatus) *Queue {
+func NewQueue(box *QueueBox, id sth.QueueID) *Queue {
 	return &Queue{
-		pod,
+		box,
 		id,
-		status,
 		RedisKeyFromQueueID(id),
-		0,
-		&sync.RWMutex{},
-		time.Now(),
-		0,
-		0,
+		Working,
+		0, 0, 0,
 	}
 }
 
-func (queue *Queue) sync() (result Result, err error) {
+// Sync TODO
+func (queue *Queue) Sync() (result sth.Result, err error) {
 	result = queue.metaInfo()
 	oldSize := queue.qsize
 	oldStatus := queue.status
 
-	pipe := queue.pod.Client.Pipeline()
+	pipe := queue.box.core.Client().Pipeline()
 	pipe.LLen(queue.redisKey)
-	pipe.SIsMember(RedisPausedQueuesKey, queue.ID.String())
+	pipe.SIsMember(RedisPausedQueuesKey, queue.ID().String())
 	var cmders []redis.Cmder
 	t := time.Now()
 	cmders, err = pipe.Exec()
-	result["redis"] = Result{
+	result["redis"] = sth.Result{
 		"_cost_ms_": utils.SinceMS(t),
 	}
 	if err != nil {
@@ -140,35 +101,26 @@ func (queue *Queue) sync() (result Result, err error) {
 		offset := newSize - oldSize
 		queue.qsize = newSize
 		if offset != 0 {
-			queue.pod.stats.IncrRequestNum(offset)
+			queue.box.stats.IncrRequestNum(offset)
 		}
 	}
 	result["osize"] = oldSize
 	result["qsize"] = newSize
 	if paused {
-		err = queue.setStatus(QueuePaused)
+		queue.status = Paused
 	}
-	if err == nil {
-		result["ostatus"] = oldStatus
-		result["status"] = queue.status
-	}
+	result["ostatus"] = oldStatus
+	result["status"] = queue.status
 	return
 }
 
-// Sync TODO
-func (queue *Queue) Sync() (result Result, err error) {
-	queue.Lock()
-	defer queue.Unlock()
-	return queue.sync()
-}
-
 func (queue *Queue) updateInput(n int64) int64 {
-	queue.pod.stats.UpdateInput(n)
+	queue.box.stats.UpdateInput(n)
 	return queue.incr(n)
 }
 
 func (queue *Queue) updateOutput(n int64) int64 {
-	queue.pod.stats.UpdateOutput(n)
+	queue.box.stats.UpdateOutput(n)
 	return queue.decr(n)
 }
 
@@ -208,21 +160,14 @@ func (queue *Queue) Queuing() int64 {
 	return atomic.LoadInt64(&queue.queuing)
 }
 
-// Put TODO
-func (queue *Queue) Put(request *request.Request) (result Result, err error) {
-	queue.RLock()
-	defer queue.RUnlock()
-
-	if queue.status != QueueWorking {
-		err = UnavailableError(fmt.Sprintf("%s %s", queue.ID, queue.status))
-		return
-	}
+// Push TODO
+func (queue *Queue) Push(request *request.Request) (result sth.Result, err error) {
 
 	queuing := queue.incrQueuing(1)
 	defer queue.decrQueuing(1)
 
 	if queuing > 198405 {
-		err = UnavailableError(fmt.Sprintf("%s too many put requests %d", queue.ID, queuing))
+		err = UnavailableError(fmt.Sprintf("%s too many push requests %d", queue.ID(), queuing))
 		return
 	}
 
@@ -232,37 +177,31 @@ func (queue *Queue) Put(request *request.Request) (result Result, err error) {
 	request.Meta["_pod_in_"] = time.Now().Unix()
 	j, err := json.Marshal(request)
 	if err == nil {
-		rsize, err := queue.pod.Client.RPush(queue.redisKey, j).Result()
+		rsize, err := queue.box.core.Client().RPush(queue.redisKey, j).Result()
 		if err == nil {
 			qsize := queue.updateInput(1)
-			result = Result{"rsize": rsize, "qsize": qsize}
+			result = sth.Result{"rsize": rsize, "qsize": qsize}
 		}
 	}
 	return
 }
 
-// Get TODO
-func (queue *Queue) Get() (req *request.Request, qsize int64, err error) {
-	queue.RLock()
-	defer queue.RUnlock()
+// Pop TODO
+func (queue *Queue) Pop() (req *request.Request, qsize int64, err error) {
 
-	if queue.status != QueueWorking {
-		err = UnavailableError(fmt.Sprintf("%s %s", queue.ID, queue.status))
-		return
-	}
 	dequeuing := queue.incrDequeuing(1)
 	defer queue.decrDequeuing(1)
 	qsize = queue.QueueSize()
 
 	if dequeuing > qsize || dequeuing > 198405 {
-		msg := fmt.Sprintf("%s qsize %d, dequeuing %d", queue.ID, qsize, dequeuing)
+		msg := fmt.Sprintf("%s qsize %d, dequeuing %d", queue.ID(), qsize, dequeuing)
 		log.Logger.Debug(msg)
 		err = UnavailableError(msg)
 		return
 	}
 
 	var r string
-	r, err = queue.pod.Client.LPop(queue.redisKey).Result()
+	r, err = queue.box.core.Client().LPop(queue.redisKey).Result()
 	if err == nil {
 		qsize = queue.updateOutput(1)
 		req = &request.Request{}
@@ -272,31 +211,25 @@ func (queue *Queue) Get() (req *request.Request, qsize int64, err error) {
 }
 
 // metaInfo TODO
-func (queue *Queue) metaInfo() Result {
-	return Result{
+func (queue *Queue) metaInfo() sth.Result {
+	return sth.Result{
 		"rkey":      queue.redisKey,
-		"qid":       queue.ID,
+		"qid":       queue.ID(),
 		"status":    queue.status,
-		"qsize":     queue.qsize,
-		"ctime":     queue.createTime,
-		"queuing":   queue.queuing,
-		"dequeuing": queue.dequeuing,
+		"qsize":     queue.QueueSize(),
+		"queuing":   queue.Queuing(),
+		"dequeuing": queue.Dequeuing(),
 	}
 }
 
 // View TODO
-func (queue *Queue) View(start int64, end int64) (result Result, err error) {
-	queue.Lock()
-	defer queue.Unlock()
+func (queue *Queue) View(start int64, end int64) (result sth.Result, err error) {
 
-	result, err = queue.sync()
-	if err != nil {
-		return
-	}
 	t := time.Now()
 	var requests []string
-	requests, err = queue.pod.Client.LRange(queue.redisKey, start, end).Result()
-	result["redis"] = Result{
+	requests, err = queue.box.core.Client().LRange(queue.redisKey, start, end).Result()
+	result = sth.Result{}
+	result["redis"] = sth.Result{
 		"_cost_ms_": utils.SinceMS(t),
 	}
 	result["requests"] = requests
@@ -305,31 +238,18 @@ func (queue *Queue) View(start int64, end int64) (result Result, err error) {
 }
 
 // Info TODO
-func (queue *Queue) Info() Result {
-	queue.Lock()
-	defer queue.Unlock()
+func (queue *Queue) Info() sth.Result {
 	return queue.metaInfo()
 }
 
-// Idle TODO
-func (queue *Queue) Idle() bool {
-	queue.Lock()
-	defer queue.Unlock()
-	return queue.qsize <= 0 &&
-		(queue.status == QueueWorking || queue.status == QueueInit) &&
-		queue.queuing <= 0
-}
-
 // Clear TODO
-func (queue *Queue) Clear() (result Result, err error) {
-	queue.Lock()
-	defer queue.Unlock()
+func (queue *Queue) Clear(erase bool) (result sth.Result, err error) {
 
 	result = queue.metaInfo()
 	result["drop"] = 0
 
 	t := time.Now()
-	err = queue.pod.Client.Watch(func(tx *redis.Tx) error {
+	err = queue.box.core.Client().Watch(func(tx *redis.Tx) error {
 		drop, e := tx.LLen(queue.redisKey).Result()
 		if e == nil {
 			_, e = tx.Del(queue.redisKey).Result()
@@ -337,86 +257,19 @@ func (queue *Queue) Clear() (result Result, err error) {
 		if e == nil && drop != 0 {
 			result["drop"] = drop
 		}
+		if e == nil && erase {
+			_, e = tx.SRem(RedisPausedQueuesKey, queue.ID().String()).Result()
+		}
 		return e
 	}, queue.redisKey)
-	result["redis"] = Result{
+	result["redis"] = sth.Result{
 		"_cost_ms_": utils.SinceMS(t),
 	}
 
 	if err == nil && queue.qsize != 0 {
-		queue.pod.stats.IncrRequestNum(0 - queue.qsize)
+		queue.box.stats.IncrRequestNum(0 - queue.qsize)
 		queue.qsize = 0
 	}
 
-	return
-}
-
-// Status TODO
-func (queue *Queue) Status() QueueStatus {
-	queue.RLock()
-	defer queue.RUnlock()
-	return queue.status
-}
-
-func (queue *Queue) setStatus(newStatus QueueStatus) (err error) {
-	oldStatus := queue.status
-	if oldStatus == newStatus {
-		return
-	}
-	e := UnavailableError(oldStatus)
-	switch oldStatus {
-	case QueueInit:
-	case QueuePaused:
-		switch newStatus {
-		case QueueInit:
-			err = e
-		}
-	case QueueWorking:
-		switch newStatus {
-		case QueueInit:
-			err = e
-		}
-	case QueueRemoved:
-		err = e
-	}
-	if err != nil {
-		return
-	}
-	if newStatus == QueuePaused {
-		_, err = queue.pod.Client.SAdd(RedisPausedQueuesKey, queue.ID.String()).Result()
-	} else if oldStatus == QueuePaused {
-		_, err = queue.pod.Client.SRem(RedisPausedQueuesKey, queue.ID.String()).Result()
-	}
-
-	if err != nil {
-		return
-	}
-
-	box := queue.pod.queueBox
-	queue.status = newStatus
-	box.statusQueueIDs[oldStatus].Delete(queue.ID.ItemID())
-	if newStatus != QueueRemoved {
-		box.queues[queue.ID] = queue
-		box.statusQueueIDs[newStatus].Add(queue.ID)
-	} else {
-		delete(box.queues, queue.ID)
-	}
-	return
-}
-
-// SetStatus TODO
-func (queue *Queue) SetStatus(status QueueStatus) (err error) {
-	queue.Lock()
-	defer queue.Unlock()
-	return queue.setStatus(status)
-}
-
-// SetStatusOn TODO
-func (queue *Queue) SetStatusOn(newStatus QueueStatus, on QueueStatus) (err error) {
-	queue.Lock()
-	defer queue.Unlock()
-	if queue.status == on {
-		err = queue.setStatus(newStatus)
-	}
 	return
 }

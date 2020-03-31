@@ -4,6 +4,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/prep/average"
 )
 
@@ -21,10 +22,10 @@ func WindowTotal(window *average.SlidingWindow, second time.Duration) int64 {
 }
 
 // Stats TODO
-func (stats *Stats) Stats() Result {
-	result := Result{
+func (stats *Stats) Stats() sth.Result {
+	result := sth.Result{
 		"total": stats.RequestNum(),
-		"speed": Result{
+		"speed": sth.Result{
 			"input_5s":  WindowTotal(stats.requestInputWS, 5),
 			"output_5s": WindowTotal(stats.requestOutputWS, 5),
 		},

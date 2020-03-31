@@ -5,77 +5,69 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
+	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	core "github.com/cfhamlet/os-rq-pod/pod"
 	"github.com/gin-gonic/gin"
 )
 
-// QueueIDFromQuery TODO
-func QueueIDFromQuery(q string) (qid core.QueueID, err error) {
-	if strings.Contains(q, "://") {
-		p, err := utils.NewParsedURL(q)
-		if err == nil {
-			qid = core.CreateQueueID(p.Host, p.Port, p.Parsed.Scheme)
-		}
-	} else {
-		s := strings.Split(q, ":")
-		switch len(s) {
-		case 1:
-			qid = core.CreateQueueID(q, "", "http")
-		case 2:
-			qid = core.CreateQueueID(s[0], s[1], "http")
-		case 3: // QueueID
-			qid = core.CreateQueueID(s[0], s[1], s[2])
-		default:
-			err = InvalidQuery(fmt.Sprintf("%q", q))
-		}
-	}
-
-	return
+// Resume TODO
+func Resume(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return serv.Switch(true)
 }
 
-// AddRequest TODO
-func AddRequest(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
+// Pause TODO
+func Pause(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return serv.Switch(false)
+}
+
+// Info TODO
+func Info(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return serv.Info()
+}
+
+// RedisInfo TODO
+func RedisInfo(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	t := time.Now()
+	s := c.DefaultQuery("section", "")
+	var section []string
+	if s != "" {
+		section = strings.Split(s, ",")
+	}
+	info, err := serv.RedisInfo(section...)
+	return sth.Result{"info": info, "_cost_ms_": utils.SinceMS(t)}, err
+}
+
+// ProcessMemory TODO
+func ProcessMemory(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return sth.Result{"memory": serv.ProcessMemory()}, nil
+}
+
+// PushRequest TODO
+func PushRequest(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
 	var req *request.RawRequest = &request.RawRequest{}
 
 	if err = c.ShouldBindJSON(req); err != nil {
 		err = InvalidBody(fmt.Sprintf("%s", err))
 	} else {
-		result, err = pod.AddRequest(req)
+		result, err = serv.QueueBox.PushRequest(req)
 	}
 
 	c.Header("Access-Control-Allow-Origin", "*")
 	return
 }
 
-// CallByQueueID TODO
-type CallByQueueID func(core.QueueID) (core.Result, error)
-
-// Resume TODO
-func Resume(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return pod.Resume()
-}
-
-// Pause TODO
-func Pause(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return pod.Pause()
-}
-
-// Info TODO
-func Info(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return pod.Info()
-}
-
-// GetRequest TODO
-func GetRequest(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
+// PopRequest TODO
+func PopRequest(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
 	q := c.Query("q")
-	var qid core.QueueID
+	var qid sth.QueueID
 	qid, err = QueueIDFromQuery(q)
 	if err == nil {
 		var req *request.Request
-		req, err = pod.GetRequest(qid)
+		req, err = serv.QueueBox.PopRequest(qid)
 		if err == nil {
 			c.JSON(http.StatusOK, req)
 		}
@@ -83,7 +75,7 @@ func GetRequest(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 	return
 }
 
-func operateQueueByQuery(c *gin.Context, f CallByQueueID) (result core.Result, err error) {
+func operateQueueByQuery(c *gin.Context, f CallByQueueID) (result sth.Result, err error) {
 	q := c.Query("q")
 
 	qid, err := QueueIDFromQuery(q)
@@ -91,43 +83,46 @@ func operateQueueByQuery(c *gin.Context, f CallByQueueID) (result core.Result, e
 		result, err = f(qid)
 	}
 	if result == nil {
-		result = core.Result{"qid": qid}
+		result = sth.Result{"qid": qid}
 	}
 	return
 }
 
 // PauseQueue TODO
-func PauseQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return operateQueueByQuery(c, pod.PauseQueue)
+func PauseQueue(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return operateQueueByQuery(c, serv.QueueBox.PauseQueue)
 }
 
 // ResumeQueue TODO
-func ResumeQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return operateQueueByQuery(c, pod.ResumeQueue)
+func ResumeQueue(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return operateQueueByQuery(c, serv.QueueBox.ResumeQueue)
 }
 
 // QueueInfo TODO
-func QueueInfo(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return operateQueueByQuery(c, pod.QueueInfo)
+func QueueInfo(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return operateQueueByQuery(c, serv.QueueBox.QueueInfo)
 }
 
 // DeleteQueue TODO
-func DeleteQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return operateQueueByQuery(c, pod.DeleteQueue)
+func DeleteQueue(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return operateQueueByQuery(c, serv.QueueBox.DeleteQueue)
 }
 
 // ClearQueue TODO
-func ClearQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return operateQueueByQuery(c, pod.ClearQueue)
+func ClearQueue(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return operateQueueByQuery(c, serv.QueueBox.ClearQueue)
 }
 
 // SyncQueue TODO
-func SyncQueue(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return operateQueueByQuery(c, pod.ForceSyncQueue)
+func SyncQueue(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return operateQueueByQuery(c, func(qid sth.QueueID) (sth.Result, error) {
+		return serv.QueueBox.SyncQueue(qid, true)
+	},
+	)
 }
 
 // ViewQueue  TODO
-func ViewQueue(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
+func ViewQueue(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
 
 	s := c.DefaultQuery("s", "0")
 	e := c.DefaultQuery("e", "0")
@@ -147,35 +142,16 @@ func ViewQueue(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 	}
 
 	return operateQueueByQuery(c,
-		func(qid core.QueueID) (core.Result, error) {
-			return pod.ViewQueue(qid, start, end)
+		func(qid sth.QueueID) (sth.Result, error) {
+			return serv.QueueBox.ViewQueue(qid, start, end)
 		},
 	)
 }
 
-func infoResult(info interface{}, err error) (core.Result, error) {
-	return core.Result{"info": info}, err
-}
-
-// RedisMemory TODO
-func RedisMemory(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return infoResult(pod.Client.Info("memory").Result())
-}
-
-// RedisInfo TODO
-func RedisInfo(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return infoResult(pod.Client.Info().Result())
-}
-
-// ProcessMemory TODO
-func ProcessMemory(c *gin.Context, pod *core.Pod) (core.Result, error) {
-	return infoResult(pod.Process.MemoryInfo())
-}
-
 // ViewQueues TODO
-func ViewQueues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
+func ViewQueues(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
 
-	qs := c.DefaultQuery("status", utils.Text(core.QueueWorking))
+	qs := c.DefaultQuery("status", "working")
 	status, ok := core.QueueStatusMap[qs]
 	if !ok {
 		err = InvalidQuery(fmt.Sprintf(`invalid status '%s'`, qs))
@@ -196,7 +172,7 @@ func ViewQueues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 		if e != nil {
 			err = InvalidQuery(fmt.Sprintf("start=%s %s", qs, err))
 		} else {
-			result, err = pod.ViewQueues(int(k), int(s), status)
+			result = serv.QueueBox.ViewQueues(int(k), int(s), status)
 		}
 	}
 
@@ -204,7 +180,7 @@ func ViewQueues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 }
 
 // Queues TODO
-func Queues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
+func Queues(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
 
 	qk := c.DefaultQuery("k", "10")
 	k, e := strconv.ParseInt(qk, 10, 64)
@@ -214,7 +190,7 @@ func Queues(c *gin.Context, pod *core.Pod) (result core.Result, err error) {
 		err = InvalidQuery(fmt.Sprintf("k=%s [1, 1000]", qk))
 	}
 	if err == nil {
-		result, err = pod.Queues(int(k))
+		result = serv.QueueBox.Queues(int(k))
 	}
 	return
 }

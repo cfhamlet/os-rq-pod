@@ -10,32 +10,23 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 )
 
-// QueueStatus type
+// QueueStatus TODO
 type QueueStatus int
 
 // QueueStatus enum
 const (
-	_            QueueStatus = iota
-	QueueInit                // init
-	QueueWorking             // working
-	QueuePaused              // paused
-	QueueRemoved             // removed
+	_       QueueStatus = iota
+	Working             // working
+	Paused              // paused
 )
+
+// QueueStatusList TODO
+var QueueStatusList = []QueueStatus{Working, Paused}
 
 // QueueStatusMap TODO
 var QueueStatusMap = map[string]QueueStatus{
-	utils.Text(QueueInit):    QueueInit,
-	utils.Text(QueueWorking): QueueWorking,
-	utils.Text(QueuePaused):  QueuePaused,
-	utils.Text(QueueRemoved): QueueRemoved,
-}
-
-// QueueStatusList TODO
-var QueueStatusList = []QueueStatus{
-	QueueInit,
-	QueueWorking,
-	QueuePaused,
-	QueueRemoved,
+	utils.Text(Working): Working,
+	utils.Text(Paused):  Paused,
 }
 
 // MarshalJSON TODO
@@ -46,7 +37,7 @@ func (s QueueStatus) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// UnmarshalJSON TODO
+// UnmarshalJSON unmashals a quoted json string to the enum value
 func (s *QueueStatus) UnmarshalJSON(b []byte) error {
 	var j string
 	err := json.Unmarshal(b, &j)
@@ -56,7 +47,7 @@ func (s *QueueStatus) UnmarshalJSON(b []byte) error {
 
 	t, ok := QueueStatusMap[j]
 	if !ok {
-		return fmt.Errorf(`invalid QueueStatus value '%s'`, j)
+		return fmt.Errorf(`invalid Status value '%s'`, j)
 	}
 
 	*s = t

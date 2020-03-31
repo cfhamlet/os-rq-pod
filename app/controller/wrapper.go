@@ -4,28 +4,29 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	core "github.com/cfhamlet/os-rq-pod/pod"
 	"github.com/gin-gonic/gin"
 )
 
 // CtrlFunc TODO
-type CtrlFunc func(*gin.Context, *core.Pod) (core.Result, error)
+type CtrlFunc func(*gin.Context, *core.Core) (sth.Result, error)
 
 // NewHandlerWrapper TODO
-func NewHandlerWrapper(pod *core.Pod) *HandlerWrapper {
-	return &HandlerWrapper{pod}
+func NewHandlerWrapper(serv *core.Core) *HandlerWrapper {
+	return &HandlerWrapper{serv}
 }
 
 // HandlerWrapper TODO
 type HandlerWrapper struct {
-	pod *core.Pod
+	serv *core.Core
 }
 
 // Wrap TODO
 func (wp *HandlerWrapper) Wrap(f CtrlFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		code := http.StatusOK
-		result, err := f(c, wp.pod)
+		result, err := f(c, wp.serv)
 
 		if err != nil {
 			switch err.(type) {
@@ -40,7 +41,7 @@ func (wp *HandlerWrapper) Wrap(f CtrlFunc) gin.HandlerFunc {
 			}
 
 			if result == nil {
-				result = core.Result{}
+				result = sth.Result{}
 			}
 
 			result["err"] = err.Error()

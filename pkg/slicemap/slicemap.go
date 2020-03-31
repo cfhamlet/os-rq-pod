@@ -57,11 +57,15 @@ func (m *Map) Get(id uint64) Item {
 	return nil
 }
 
+func (m *Map) size() int {
+	return m.maxIdx
+}
+
 // Size TODO
 func (m *Map) Size() int {
 	m.RLock()
 	defer m.RUnlock()
-	return m.maxIdx
+	return m.size()
 }
 
 func (m *Map) shrink() {

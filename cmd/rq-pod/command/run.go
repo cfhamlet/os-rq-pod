@@ -25,8 +25,8 @@ func run(conf *viper.Viper) {
 		return conf, err
 	}
 
-	podLifecycle := func(lc fx.Lifecycle, pod *core.Pod, r *runner.Runner) {
-		runner.ServeFlowLifecycle(lc, pod, r)
+	podLifecycle := func(lc fx.Lifecycle, serv *core.Core, r *runner.Runner) {
+		runner.ServeFlowLifecycle(lc, serv, r)
 	}
 
 	var r *runner.Runner
