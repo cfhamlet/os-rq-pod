@@ -46,7 +46,7 @@ type ParsedRedisInfo map[string]map[string]string
 func ParseRedisInfo(info string) ParsedRedisInfo {
 	out := ParsedRedisInfo{}
 	var b map[string]string
-	e := -1
+	var e int
 	for len(info) > 0 {
 		if strings.HasPrefix(info, "# ") {
 			e = strings.Index(info, "\n")
