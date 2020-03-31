@@ -14,20 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PushRequest TODO
-func PushRequest(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
-	var req *request.RawRequest = &request.RawRequest{}
-
-	if err = c.ShouldBindJSON(req); err != nil {
-		err = InvalidBody(fmt.Sprintf("%s", err))
-	} else {
-		result, err = serv.QueueBox.PushRequest(req)
-	}
-
-	c.Header("Access-Control-Allow-Origin", "*")
-	return
-}
-
 // Resume TODO
 func Resume(c *gin.Context, serv *core.Core) (sth.Result, error) {
 	return serv.Switch(true)
@@ -41,6 +27,37 @@ func Pause(c *gin.Context, serv *core.Core) (sth.Result, error) {
 // Info TODO
 func Info(c *gin.Context, serv *core.Core) (sth.Result, error) {
 	return serv.Info()
+}
+
+// RedisInfo TODO
+func RedisInfo(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	t := time.Now()
+	s := c.DefaultQuery("section", "")
+	var section []string
+	if s != "" {
+		section = strings.Split(s, ",")
+	}
+	info, err := serv.RedisInfo(section...)
+	return sth.Result{"info": info, "_cost_ms_": utils.SinceMS(t)}, err
+}
+
+// ProcessMemory TODO
+func ProcessMemory(c *gin.Context, serv *core.Core) (sth.Result, error) {
+	return sth.Result{"memory": serv.ProcessMemory()}, nil
+}
+
+// PushRequest TODO
+func PushRequest(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
+	var req *request.RawRequest = &request.RawRequest{}
+
+	if err = c.ShouldBindJSON(req); err != nil {
+		err = InvalidBody(fmt.Sprintf("%s", err))
+	} else {
+		result, err = serv.QueueBox.PushRequest(req)
+	}
+
+	c.Header("Access-Control-Allow-Origin", "*")
+	return
 }
 
 // PopRequest TODO
@@ -129,23 +146,6 @@ func ViewQueue(c *gin.Context, serv *core.Core) (result sth.Result, err error) {
 			return serv.QueueBox.ViewQueue(qid, start, end)
 		},
 	)
-}
-
-// RedisInfo TODO
-func RedisInfo(c *gin.Context, serv *core.Core) (sth.Result, error) {
-	t := time.Now()
-	s := c.DefaultQuery("section", "")
-	var section []string
-	if s != "" {
-		section = strings.Split(s, ",")
-	}
-	info, err := serv.RedisInfo(section...)
-	return sth.Result{"info": info, "_cost_ms_": utils.SinceMS(t)}, err
-}
-
-// ProcessMemory TODO
-func ProcessMemory(c *gin.Context, serv *core.Core) (sth.Result, error) {
-	return sth.Result{"memory": serv.ProcessMemory()}, nil
 }
 
 // ViewQueues TODO
