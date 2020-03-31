@@ -17,8 +17,8 @@ type Core struct {
 	QueueBox *QueueBox
 }
 
-// NewPod creates RQ object
-func NewPod(conf *viper.Viper, client *redis.Client) (core *Core) {
+// New creates RQ object
+func New(conf *viper.Viper, client *redis.Client) (core *Core) {
 
 	core = &Core{
 		serv.NewRedisServ(conf, client),
