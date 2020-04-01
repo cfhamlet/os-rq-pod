@@ -14,15 +14,15 @@ import (
 type QueueBox struct {
 	core         *Core
 	stats        *Stats
-	statusQueues map[QueueStatus]*slicemap.MustViewer
+	statusQueues map[QueueStatus]*slicemap.Viewer
 	*utils.BulkLock
 }
 
 // NewQueueBox TODO
 func NewQueueBox(core *Core) *QueueBox {
-	statusQueues := map[QueueStatus]*slicemap.MustViewer{}
+	statusQueues := map[QueueStatus]*slicemap.Viewer{}
 	for _, status := range QueueStatusList {
-		statusQueues[status] = slicemap.NewMustViewer(nil)
+		statusQueues[status] = slicemap.NewViewer(nil)
 	}
 	return &QueueBox{
 		core,
