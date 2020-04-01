@@ -19,14 +19,14 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("bad status %s", e.status)
 }
 
-// StatusChangeError TODO
-type StatusChangeError struct {
+// StatusConflictError TODO
+type StatusConflictError struct {
 	from Status
 	to   Status
 }
 
-func (e *StatusChangeError) Error() string {
-	return fmt.Sprintf("can't change from %s to %s", e.from, e.to)
+func (e *StatusConflictError) Error() string {
+	return fmt.Sprintf("conflict from %s to %s", e.from, e.to)
 }
 
 // Status type

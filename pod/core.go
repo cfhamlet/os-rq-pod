@@ -39,7 +39,7 @@ func (core *Core) OnStart() (err error) {
 	}
 
 	switch err.(type) {
-	case *serv.StatusChangeError:
+	case *serv.StatusConflictError:
 		if serv.StopStatus(core.Status(true)) {
 			log.Logger.Warning("stop when starting")
 			return nil
