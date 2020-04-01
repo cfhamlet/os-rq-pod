@@ -163,16 +163,10 @@ func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err e
 	}
 
 	box.Lock(iid)
-	item := workingQueues.Get(iid)
-	if item != nil {
+	if workingQueues.Get(iid) != nil ||
+		pausedQueues.Get(iid) != nil {
 		box.Unlock(iid)
 		return box.pushRequest(req)
-	}
-	item = pausedQueues.Get(iid)
-	if item != nil {
-		err = UnavailableError(utils.Text(qid))
-		box.Unlock(iid)
-		return
 	}
 	newQueue := NewQueue(box, qid)
 	_, err = newQueue.Sync()
@@ -391,8 +385,7 @@ func (box *QueueBox) SetStatus(qid sth.QueueID, newStatus QueueStatus) (sth.Resu
 				box.statusQueues[newStatus].Add(queue)
 
 			}
-			result = queue.Info()
-			return
+			return queue.Info(), err
 		}, false)
 }
 
