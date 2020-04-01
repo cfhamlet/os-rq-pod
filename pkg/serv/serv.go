@@ -77,7 +77,7 @@ func (serv *Serv) setStatus(newStatus Status) (err error) {
 	if oldStatus == newStatus {
 		return
 	}
-	e := &StatusChangeError{oldStatus, newStatus}
+	e := &StatusConflictError{oldStatus, newStatus}
 	switch serv.status {
 	case Init:
 		switch newStatus {
