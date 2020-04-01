@@ -5,6 +5,7 @@ type ExistViewer struct {
 	*Map
 }
 
+// ViewFunc TODO
 type ViewFunc func(Item)
 
 // View TODO
@@ -34,5 +35,8 @@ func (viewer *MustViewer) View(id uint64, f ViewFunc) {
 
 // NewMustViewer TODO
 func NewMustViewer(m *Map) *MustViewer {
+	if m == nil {
+		m = New()
+	}
 	return &MustViewer{m}
 }
