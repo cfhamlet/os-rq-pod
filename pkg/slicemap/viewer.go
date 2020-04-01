@@ -28,7 +28,7 @@ func (viewer *Viewer) View(id uint64, f ViewFunc) {
 }
 
 // GetOrAdd TODO
-func (viewer *Viewer) GetOrAdd(id uint64, f func(Item) Item) {
+func (viewer *Viewer) GetOrAdd(id uint64, f func(Item) Item) bool {
 	viewer.RLock()
 	defer viewer.RUnlock()
 
@@ -41,9 +41,11 @@ func (viewer *Viewer) GetOrAdd(id uint64, f func(Item) Item) {
 		if item == nil {
 			if new != nil {
 				viewer.add(new)
+				return true
 			}
 		}
 	} else {
 		f(item)
 	}
+	return false
 }
