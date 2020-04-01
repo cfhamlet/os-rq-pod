@@ -161,7 +161,7 @@ func (ctrl *Controller) ViewQueue(c *gin.Context) (result sth.Result, err error)
 // ViewQueues TODO
 func (ctrl *Controller) ViewQueues(c *gin.Context) (result sth.Result, err error) {
 
-	qs := c.DefaultQuery("status", "working")
+	qs := c.DefaultQuery("status", utils.Text(core.Working))
 	status, ok := core.QueueStatusMap[qs]
 	if !ok {
 		err = InvalidQuery(fmt.Sprintf(`invalid status '%s'`, qs))
