@@ -22,7 +22,7 @@ type QueueBox struct {
 func NewQueueBox(core *Core) *QueueBox {
 	statusQueues := map[QueueStatus]*slicemap.MustViewer{}
 	for _, status := range QueueStatusList {
-		statusQueues[status] = slicemap.NewMustViewer(slicemap.New())
+		statusQueues[status] = slicemap.NewMustViewer(nil)
 	}
 	return &QueueBox{
 		core,
