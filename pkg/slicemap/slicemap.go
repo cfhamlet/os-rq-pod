@@ -32,8 +32,7 @@ func (m *Map) Add(item Item) bool {
 	m.Lock()
 	defer m.Unlock()
 	id := item.ItemID()
-	if idx, ok := m.idxMap[id]; ok {
-		m.items[idx] = item
+	if _, ok := m.idxMap[id]; ok {
 		return false
 	}
 
