@@ -383,7 +383,6 @@ func (box *QueueBox) SetStatus(qid sth.QueueID, newStatus QueueStatus) (sth.Resu
 				iid := queue.ItemID()
 				box.statusQueues[oldStatus].Delete(iid)
 				box.statusQueues[newStatus].Add(queue)
-
 			}
 			return queue.Info(), err
 		}, false)
