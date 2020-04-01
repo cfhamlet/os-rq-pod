@@ -31,6 +31,10 @@ func New() *Map {
 func (m *Map) Add(item Item) bool {
 	m.Lock()
 	defer m.Unlock()
+	return m.add(item)
+}
+
+func (m *Map) add(item Item) bool {
 	id := item.ItemID()
 	if _, ok := m.idxMap[id]; ok {
 		return false
@@ -50,6 +54,10 @@ func (m *Map) Add(item Item) bool {
 func (m *Map) Get(id uint64) Item {
 	m.RLock()
 	defer m.RUnlock()
+	return m.get(id)
+}
+
+func (m *Map) get(id uint64) Item {
 	if idx, ok := m.idxMap[id]; ok {
 		return m.items[idx]
 	}

@@ -1,42 +1,49 @@
 package slicemap
 
-// ExistViewer TODO
-type ExistViewer struct {
-	*Map
-}
+import "sync"
 
 // ViewFunc TODO
 type ViewFunc func(Item)
 
-// View TODO
-func (viewer *ExistViewer) View(id uint64, f ViewFunc) {
-	viewer.RLock()
-	defer viewer.RUnlock()
-	if idx, ok := viewer.idxMap[id]; ok {
-		f(viewer.items[idx])
-	}
-}
-
-// MustViewer TODO
-type MustViewer struct {
+// Viewer TODO
+type Viewer struct {
 	*Map
+	cLock *sync.RWMutex
 }
 
-// View TODO
-func (viewer *MustViewer) View(id uint64, f ViewFunc) {
-	viewer.RLock()
-	defer viewer.RUnlock()
-	if idx, ok := viewer.idxMap[id]; ok {
-		f(viewer.items[idx])
-	} else {
-		f(nil)
-	}
-}
-
-// NewMustViewer TODO
-func NewMustViewer(m *Map) *MustViewer {
+// NewViewer TODO
+func NewViewer(m *Map) *Viewer {
 	if m == nil {
 		m = New()
 	}
-	return &MustViewer{m}
+	return &Viewer{m, &sync.RWMutex{}}
+}
+
+// View TODO
+func (viewer *Viewer) View(id uint64, f ViewFunc) {
+	viewer.RLock()
+	defer viewer.RUnlock()
+	item := viewer.get(id)
+	f(item)
+}
+
+// GetOrAdd TODO
+func (viewer *Viewer) GetOrAdd(id uint64, f func(Item) Item) {
+	viewer.RLock()
+	defer viewer.RUnlock()
+
+	item := viewer.get(id)
+	if item == nil {
+		viewer.cLock.Lock()
+		defer viewer.cLock.Unlock()
+		item := viewer.get(id)
+		new := f(item)
+		if item == nil {
+			if new != nil {
+				viewer.add(new)
+			}
+		}
+	} else {
+		f(item)
+	}
 }
