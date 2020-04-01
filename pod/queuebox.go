@@ -127,7 +127,7 @@ func (box *QueueBox) withLockMustExist(qid sth.QueueID, f CallByQueue, rLock boo
 		defer box.Unlock(iid)
 	}
 	var item slicemap.Item
-	for _, status := range QueueStatusList {
+	for status := range box.statusQueues {
 		item = box.statusQueues[status].Get(iid)
 		if item != nil {
 			return f(item.(*Queue))
@@ -418,7 +418,7 @@ func (box *QueueBox) SyncQueue(qid sth.QueueID, force bool) (result sth.Result, 
 	defer box.Unlock(iid)
 
 	var item slicemap.Item
-	for _, status := range QueueStatusList {
+	for status := range box.statusQueues {
 		item = box.statusQueues[status].Get(iid)
 		if item != nil {
 			return box.syncQueue(item.(*Queue))
