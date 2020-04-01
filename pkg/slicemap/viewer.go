@@ -49,3 +49,16 @@ func (viewer *Viewer) GetOrAdd(id uint64, f func(Item) Item) bool {
 	}
 	return false
 }
+
+// GetAndDelete TODO
+func (viewer *Viewer) GetAndDelete(id uint64, f func(Item) bool) bool {
+	viewer.Lock()
+	defer viewer.Unlock()
+	item := viewer.get(id)
+	if item != nil {
+		if f(item) {
+			return viewer.delete(id)
+		}
+	}
+	return false
+}
