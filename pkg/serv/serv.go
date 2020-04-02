@@ -166,7 +166,7 @@ func (serv *Serv) DoWithLockOnWorkStatus(f func() (interface{}, error), rLock bo
 // MetaInfo TODO
 func (serv *Serv) MetaInfo() (result sth.Result) {
 	return sth.Result{
-		"status": utils.Text(serv.Status(false)),
+		"status": serv.Status(false),
 		"process": sth.Result{
 			"pid":    serv.Getpid(),
 			"memory": serv.ProcessMemory(),
