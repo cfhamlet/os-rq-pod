@@ -66,7 +66,7 @@ func (core *Core) Info() (sth.Result, error) {
 	result, err := core.DoWithLock(
 		func() (interface{}, error) {
 			result, err := core.MetaInfo()
-			result["stats"] = core.QueueBox.Info()
+			result["queues_info"] = core.QueueBox.Info()
 			return result, err
 		}, true)
 	return result.(sth.Result), err

@@ -21,6 +21,7 @@ func InitAPIRouter(g ginserv.RouterGroup, serv *core.Core) {
 
 		{M: g.POST, P: "/queues/", H: ctrl.Queues},
 		{M: g.GET, P: "/queues/view/", H: ctrl.ViewQueues},
+		{M: g.GET, P: "/queues/info/", H: ctrl.QueuesInfo},
 
 		{M: g.POST, P: "/request/push/", H: ctrl.PushRequest},
 		{M: g.POST, P: "/request/pop/", H: ctrl.PopRequest},
