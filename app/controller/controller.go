@@ -131,6 +131,11 @@ func (ctrl *Controller) SyncQueue(c *gin.Context) (sth.Result, error) {
 	)
 }
 
+// QueuesInfo TODO
+func (ctrl *Controller) QueuesInfo(c *gin.Context) (sth.Result, error) {
+	return ctrl.QueueBox.Info(), nil
+}
+
 // ViewQueue  TODO
 func (ctrl *Controller) ViewQueue(c *gin.Context) (result sth.Result, err error) {
 
