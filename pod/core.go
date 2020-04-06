@@ -24,6 +24,7 @@ func New(conf *viper.Viper, client *redis.Client) (core *Core) {
 
 	queueBox := NewQueueBox(core)
 	core.QueueBox = queueBox
+	core.AddExtension("box", queueBox)
 
 	return
 }
@@ -32,7 +33,7 @@ func New(conf *viper.Viper, client *redis.Client) (core *Core) {
 func (core *Core) OnStart() (err error) {
 	err = core.SetStatus(serv.Preparing, true)
 	if err == nil {
-		err = core.QueueBox.Load()
+		err = core.Setup()
 		if err == nil {
 			err = core.SetStatus(serv.Working, true)
 		}
@@ -54,7 +55,10 @@ func (core *Core) OnStop() error {
 		func() (interface{}, error) {
 			err := core.SetStatus(serv.Stopping, false)
 			if err == nil {
-				err = core.SetStatus(serv.Stopped, false)
+				err = core.Cleanup()
+				if err == nil {
+					err = core.SetStatus(serv.Stopped, false)
+				}
 			}
 			return nil, err
 		}, false)

@@ -35,6 +35,16 @@ func NewQueueBox(core *Core) *QueueBox {
 // CallByQueue TODO
 type CallByQueue func(*Queue) (sth.Result, error)
 
+// Setup TODO
+func (box *QueueBox) Setup() error {
+	return box.Load()
+}
+
+// Cleanup TODO
+func (box *QueueBox) Cleanup() error {
+	return nil
+}
+
 func (box *QueueBox) doOnCoreWorking(f func() (sth.Result, error)) (sth.Result, error) {
 	r, e := box.core.DoWithLockOnWorkStatus(
 		func() (interface{}, error) {
