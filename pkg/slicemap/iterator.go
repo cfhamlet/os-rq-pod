@@ -34,6 +34,27 @@ func NewBaseIter(m *Map) *BaseIter {
 	return &BaseIter{m}
 }
 
+// ReverseIter TODO
+type ReverseIter struct {
+	*Map
+}
+
+// Iter TODO
+func (iter *ReverseIter) Iter(f IterFunc) {
+	iter.RLock()
+	defer iter.RUnlock()
+	for i := iter.maxIdx - 1; i >= 0; i-- {
+		if !f(iter.items[i]) {
+			break
+		}
+	}
+}
+
+// NewReverseIter TODO
+func NewReverseIter(m *Map) *ReverseIter {
+	return &ReverseIter{m}
+}
+
 // SubIter TODO
 type SubIter struct {
 	*Map
