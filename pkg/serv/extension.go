@@ -1,6 +1,7 @@
 package serv
 
 import (
+	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/slicemap"
 	"github.com/segmentio/fasthash/fnv1a"
 )
@@ -54,26 +55,34 @@ func (mgr *ExtensionManager) GetExtension(name string) IExtension {
 // Setup TODO
 func (mgr *ExtensionManager) Setup() (err error) {
 	iter := slicemap.NewBaseIter(mgr.extensions)
+	log.Logger.Debug("extensions setup")
 	iter.Iter(
 		func(item slicemap.Item) bool {
-			ext := item.(IExtension)
+			ext := item.(*NamedExtension)
+			log.Logger.Debugf("extension %s setup", ext.Name())
 			err = ext.Setup()
+			log.Logger.Debugf("extension %s setup finish %v", ext.Name(), err)
 			return err != nil
 		},
 	)
+	log.Logger.Debug("extensions setup finish")
 	return
 }
 
 // Cleanup TODO
 func (mgr *ExtensionManager) Cleanup() (err error) {
 	iter := slicemap.NewReverseIter(mgr.extensions)
+	log.Logger.Debug("extensions cleanup")
 	iter.Iter(
 		func(item slicemap.Item) bool {
-			ext := item.(IExtension)
+			ext := item.(*NamedExtension)
+			log.Logger.Debugf("extension %s cleanup", ext.Name())
 			err = ext.Cleanup()
+			log.Logger.Debugf("extension %s clearnup finish %v", ext.Name(), err)
 			return err != nil
 		},
 	)
+	log.Logger.Debug("extensions cleanup finish")
 	return
 }
 
