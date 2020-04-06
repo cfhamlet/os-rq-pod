@@ -14,7 +14,8 @@ import (
 type Serv struct {
 	conf    *viper.Viper
 	process *process.Process
-	status  Status
+	*ExtensionManager
+	status Status
 	*sync.RWMutex
 }
 
@@ -24,12 +25,16 @@ func New(conf *viper.Viper) *Serv {
 	if err != nil {
 		panic(err)
 	}
-	return &Serv{
+	serv := &Serv{
 		conf,
 		proc,
+		nil,
 		Init,
 		&sync.RWMutex{},
 	}
+	extMgr := NewExtensionManager(serv)
+	serv.ExtensionManager = extMgr
+	return serv
 }
 
 // OnStart TODO
