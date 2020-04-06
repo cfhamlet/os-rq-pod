@@ -22,10 +22,6 @@ func New(conf *viper.Viper, client *redis.Client) (core *Core) {
 		nil,
 	}
 
-	queueBox := NewQueueBox(core)
-	core.QueueBox = queueBox
-	core.AddExtension("box", queueBox)
-
 	return
 }
 
@@ -33,10 +29,16 @@ func New(conf *viper.Viper, client *redis.Client) (core *Core) {
 func (core *Core) OnStart() (err error) {
 	err = core.SetStatus(serv.Preparing, true)
 	if err == nil {
-		err = core.Setup()
-		if err == nil {
-			err = core.SetStatus(serv.Working, true)
+		for name, ext := range map[string]serv.IExtension{
+			"box": NewQueueBox(core),
+		} {
+			core.AddExtension(name, ext)
 		}
+		err = core.Setup()
+	}
+
+	if err == nil {
+		err = core.SetStatus(serv.Working, true)
 	}
 
 	switch err.(type) {

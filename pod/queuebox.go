@@ -36,8 +36,12 @@ func NewQueueBox(core *Core) *QueueBox {
 type CallByQueue func(*Queue) (sth.Result, error)
 
 // Setup TODO
-func (box *QueueBox) Setup() error {
-	return box.Load()
+func (box *QueueBox) Setup() (err error) {
+	err = box.Load()
+	if err == nil {
+		box.core.QueueBox = box
+	}
+	return
 }
 
 // Cleanup TODO
