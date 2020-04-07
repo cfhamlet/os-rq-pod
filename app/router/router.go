@@ -32,6 +32,11 @@ func InitAPIRouter(g ginserv.RouterGroup, serv *core.Core) {
 
 		{M: g.POST, P: "/system/ctrl/pause/", H: ctrl.Pause},
 		{M: g.POST, P: "/system/ctrl/resume/", H: ctrl.Resume},
+
+		{M: g.POST, P: "/system/config/request/", H: ctrl.AddRequestConfig},
+		{M: g.GET, P: "/system/config/request/", H: ctrl.GetRequestConfig},
+		{M: g.GET, P: "/system/config/request/match/", H: ctrl.MatchRequestConfig},
+		{M: g.DELETE, P: "/system/config/request/", H: ctrl.DeleteRequestConfig},
 	}
 
 	ginserv.Bind(routers, controller.ErrorCode)
