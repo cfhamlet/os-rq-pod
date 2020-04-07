@@ -128,7 +128,7 @@ func (box *QueueBox) logLoad(err error) {
 		args[2] = err
 	}
 
-	logf("load queues %v, requests %d %s", args...)
+	logf("load queues: %v requests: %d %s", args...)
 }
 
 func (box *QueueBox) withLockMustExist(qid sth.QueueID, f CallByQueue, rLock bool) (result sth.Result, err error) {
