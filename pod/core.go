@@ -30,7 +30,8 @@ func (core *Core) OnStart() (err error) {
 	err = core.SetStatus(serv.Preparing, true)
 	if err == nil {
 		for name, ext := range map[string]serv.IExtension{
-			"box": NewQueueBox(core),
+			"box":        NewQueueBox(core),
+			"reqwrapper": NewRequestWrapper(core),
 		} {
 			core.AddExtension(name, ext)
 		}

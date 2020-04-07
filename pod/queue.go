@@ -22,6 +22,7 @@ type Queue struct {
 	qsize     int64
 	queuing   int64
 	dequeuing int64
+	wrapper   *RequestWrapper
 }
 
 // Status TODO
@@ -64,6 +65,7 @@ func NewQueue(box *QueueBox, id sth.QueueID) *Queue {
 		RedisKeyFromQueueID(id),
 		Working,
 		0, 0, 0,
+		box.core.GetExtension("reqwrapper").(*RequestWrapper),
 	}
 }
 
@@ -206,6 +208,9 @@ func (queue *Queue) Pop() (req *request.Request, qsize int64, err error) {
 		qsize = queue.updateOutput(1)
 		req = &request.Request{}
 		err = json.Unmarshal([]byte(r), req)
+	}
+	if err == nil {
+		queue.wrapper.Wrap(req)
 	}
 	return
 }
