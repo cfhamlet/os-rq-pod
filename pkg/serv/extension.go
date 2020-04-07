@@ -62,7 +62,7 @@ func (mgr *ExtensionManager) Setup() (err error) {
 			log.Logger.Debugf("extension %s setup", ext.Name())
 			err = ext.Setup()
 			log.Logger.Debugf("extension %s setup finish %v", ext.Name(), err)
-			return err != nil
+			return err == nil
 		},
 	)
 	log.Logger.Debug("extensions setup finish")
@@ -79,7 +79,7 @@ func (mgr *ExtensionManager) Cleanup() (err error) {
 			log.Logger.Debugf("extension %s cleanup", ext.Name())
 			err = ext.Cleanup()
 			log.Logger.Debugf("extension %s clearnup finish %v", ext.Name(), err)
-			return err != nil
+			return err == nil
 		},
 	)
 	log.Logger.Debug("extensions cleanup finish")
