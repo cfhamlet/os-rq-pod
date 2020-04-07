@@ -74,6 +74,24 @@ func (wrapper *RequestWrapper) Get(nlc *netloc.Netloc) (*netloc.Netloc, *Request
 	return nil, nil
 }
 
+// NetlocRequestConfig TODO
+type NetlocRequestConfig struct {
+	Netloc *netloc.Netloc `json:"netloc"`
+	Rule   *RequestConfig `json:"rule"`
+}
+
+// GetAll TODO
+func (wrapper *RequestWrapper) GetAll() []*NetlocRequestConfig {
+	out := []*NetlocRequestConfig{}
+	wrapper.matcher.Iter(
+		func(nlc *netloc.Netloc, rule interface{}) bool {
+			out = append(out, &NetlocRequestConfig{nlc, rule.(*RequestConfig)})
+			return true
+		},
+	)
+	return out
+}
+
 // MatchURI TODO
 func (wrapper *RequestWrapper) MatchURI(uri string) (*netloc.Netloc, *RequestConfig) {
 	n, r := wrapper.matcher.MatchURL(uri)
@@ -136,7 +154,7 @@ func (wrapper *RequestWrapper) loadAdminFromLocal() {
 func NetlocFromString(s string) (*netloc.Netloc, error) {
 	c := strings.Split(s, "|")
 	if len(c) != 3 {
-		return nil, fmt.Errorf("invalid netloc %s", c)
+		return nil, fmt.Errorf("'%s'", s)
 	}
 	return netloc.New(c[0], c[1], c[2]), nil
 }

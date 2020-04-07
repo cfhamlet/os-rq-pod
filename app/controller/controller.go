@@ -89,25 +89,25 @@ func (ctrl *Controller) PopRequest(c *gin.Context) (result sth.Result, err error
 // AddRequestConfig TODO
 func (ctrl *Controller) AddRequestConfig(c *gin.Context) (result sth.Result, err error) {
 	n := c.Query("netloc")
-	var reqConfig *core.RequestConfig
+	reqConfig := &core.RequestConfig{}
 	if err = c.ShouldBindJSON(reqConfig); err != nil {
 		err = InvalidBody(fmt.Sprintf("%s", err))
-	} else {
-		var nlc *netloc.Netloc
-		nlc, err = core.NetlocFromString(n)
+		return
+	}
+	var nlc *netloc.Netloc
+	nlc, err = core.NetlocFromString(n)
+	if err == nil {
+		n, r, err := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Add(nlc, reqConfig)
 		if err == nil {
-			n, r, err := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Add(nlc, reqConfig)
-			if err == nil {
-				result = sth.Result{
-					"replaced": sth.Result{
-						"netloc": n,
-						"rule":   r,
-					},
-					"active": sth.Result{
-						"netloc": nlc,
-						"rule":   reqConfig,
-					},
-				}
+			result = sth.Result{
+				"replaced": sth.Result{
+					"netloc": n,
+					"rule":   r,
+				},
+				"active": sth.Result{
+					"netloc": nlc,
+					"rule":   reqConfig,
+				},
 			}
 		}
 	}
@@ -117,15 +117,21 @@ func (ctrl *Controller) AddRequestConfig(c *gin.Context) (result sth.Result, err
 // GetRequestConfig TODO
 func (ctrl *Controller) GetRequestConfig(c *gin.Context) (result sth.Result, err error) {
 	n := c.Query("netloc")
+	if n == "" {
+		result = sth.Result{"rules": ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).GetAll()}
+		return
+	}
 	var nlc *netloc.Netloc
 	nlc, err = core.NetlocFromString(n)
-	if err != nil {
+	if err == nil {
 		n, r := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Get(nlc)
 		if n == nil {
 			err = core.NotExistError(nlc.String())
 		} else {
 			result = sth.Result{"netloc": n, "rule": r}
 		}
+	} else {
+		err = InvalidQuery(fmt.Sprintf("netloc: %s", err))
 	}
 
 	return
@@ -134,13 +140,11 @@ func (ctrl *Controller) GetRequestConfig(c *gin.Context) (result sth.Result, err
 // MatchRequestConfig TODO
 func (ctrl *Controller) MatchRequestConfig(c *gin.Context) (result sth.Result, err error) {
 	uri := c.Query("uri")
-	if err != nil {
-		n, r := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).MatchURI(uri)
-		if n == nil {
-			err = core.NotExistError(uri)
-		} else {
-			result = sth.Result{"netloc": n, "rule": r}
-		}
+	n, r := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).MatchURI(uri)
+	if n == nil {
+		err = core.NotExistError(uri)
+	} else {
+		result = sth.Result{"netloc": n, "rule": r}
 	}
 
 	return
@@ -151,7 +155,7 @@ func (ctrl *Controller) DeleteRequestConfig(c *gin.Context) (result sth.Result, 
 	n := c.Query("netloc")
 	var nlc *netloc.Netloc
 	nlc, err = core.NetlocFromString(n)
-	if err != nil {
+	if err == nil {
 		r, e := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Delete(nlc)
 		if e != nil {
 			err = e
