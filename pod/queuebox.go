@@ -35,6 +35,20 @@ func NewQueueBox(core *Core) *QueueBox {
 // CallByQueue TODO
 type CallByQueue func(*Queue) (sth.Result, error)
 
+// Setup TODO
+func (box *QueueBox) Setup() (err error) {
+	err = box.Load()
+	if err == nil {
+		box.core.QueueBox = box
+	}
+	return
+}
+
+// Cleanup TODO
+func (box *QueueBox) Cleanup() error {
+	return nil
+}
+
 func (box *QueueBox) doOnCoreWorking(f func() (sth.Result, error)) (sth.Result, error) {
 	r, e := box.core.DoWithLockOnWorkStatus(
 		func() (interface{}, error) {
@@ -114,7 +128,7 @@ func (box *QueueBox) logLoad(err error) {
 		args[2] = err
 	}
 
-	logf("load queues %v, requests %d %s", args...)
+	logf("load queues: %v requests: %d %s", args...)
 }
 
 func (box *QueueBox) withLockMustExist(qid sth.QueueID, f CallByQueue, rLock bool) (result sth.Result, err error) {

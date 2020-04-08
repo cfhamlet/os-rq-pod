@@ -7,19 +7,26 @@ import (
 
 // RawRequest TODO
 type RawRequest struct {
-	URL      string                 `json:"url" binding:"required"`
-	Method   string                 `json:"method,omitempty"`
-	Meta     map[string]interface{} `json:"meta,omitempty"`
-	Headers  map[string]string      `json:"headers,omitempty"`
-	Cookies  map[string]string      `json:"cookies,omitempty"`
-	Body     []byte                 `json:"body,omitempty"`
-	Encoding string                 `json:"encoding,omitempty"`
+	URL     string                 `json:"url" binding:"required"`
+	Method  string                 `json:"method,omitempty"`
+	Meta    map[string]interface{} `json:"meta,omitempty"`
+	Headers map[string]string      `json:"headers,omitempty"`
+	Cookies map[string]string      `json:"cookies,omitempty"`
+	Body    string                 `json:"body,omitempty"`
 }
 
 // Request TODO
 type Request struct {
 	*RawRequest
 	*utils.ParsedURL
+}
+
+// Clone TODO
+func (req *Request) Clone() *Request {
+	b, _ := req.MarshalJSON()
+	new := &Request{}
+	_ = json.Unmarshal(b, new)
+	return new
 }
 
 // MarshalJSON TODO

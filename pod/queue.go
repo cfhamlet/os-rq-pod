@@ -22,6 +22,7 @@ type Queue struct {
 	qsize     int64
 	queuing   int64
 	dequeuing int64
+	wrapper   *RequestWrapper
 }
 
 // Status TODO
@@ -64,6 +65,7 @@ func NewQueue(box *QueueBox, id sth.QueueID) *Queue {
 		RedisKeyFromQueueID(id),
 		Working,
 		0, 0, 0,
+		box.core.GetExtension("reqwrapper").(*RequestWrapper),
 	}
 }
 
@@ -207,6 +209,9 @@ func (queue *Queue) Pop() (req *request.Request, qsize int64, err error) {
 		req = &request.Request{}
 		err = json.Unmarshal([]byte(r), req)
 	}
+	if err == nil {
+		queue.wrapper.Wrap(req)
+	}
 	return
 }
 
@@ -232,7 +237,27 @@ func (queue *Queue) View(start int64, end int64) (result sth.Result, err error) 
 	result["redis"] = sth.Result{
 		"_cost_ms_": utils.SinceMS(t),
 	}
-	result["requests"] = requests
+	out := []map[string]interface{}{}
+	for _, raw := range requests {
+		item := map[string]interface{}{
+			"raw": raw,
+		}
+		req := &request.Request{}
+		err = json.Unmarshal([]byte(raw), req)
+		if err != nil {
+			item["err"] = err
+		} else {
+			item["origin"] = req.Clone()
+			nlc, rule := queue.wrapper.Wrap(req)
+			if nlc != nil {
+				item["netloc"] = nlc
+				item["rule"] = rule
+			}
+			item["request"] = req
+		}
+		out = append(out, item)
+	}
+	result["requests"] = out
 	result["lrange"] = []int64{start, end}
 	return
 }

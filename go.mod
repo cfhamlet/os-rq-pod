@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/DeanThompson/ginpprof v0.0.0-20190408063150-3be636683586
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
+	github.com/cfhamlet/os-go-netloc-rule v0.0.6
 	github.com/gin-contrib/size v0.0.0-20200226145816-24aa35f64b9f
 	github.com/gin-gonic/gin v1.5.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
@@ -21,7 +22,7 @@ require (
 	github.com/spf13/cobra v0.0.6
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.4.0
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.5.1
 	github.com/vardius/message-bus v1.1.4
 	go.uber.org/fx v1.10.0
 	golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c // indirect

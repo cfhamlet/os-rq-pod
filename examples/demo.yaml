@@ -25,3 +25,7 @@ limit:
   queue:
     num: 1000
     length: 10000
+
+request:
+  meta:
+    batch_id: "__UNKNOW__"

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cfhamlet/os-go-netloc-rule/netloc"
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
@@ -82,6 +83,116 @@ func (ctrl *Controller) PopRequest(c *gin.Context) (result sth.Result, err error
 			c.JSON(http.StatusOK, req)
 		}
 	}
+	return
+}
+
+// AddRequestConfig TODO
+func (ctrl *Controller) AddRequestConfig(c *gin.Context) (result sth.Result, err error) {
+	n := c.Query("netloc")
+	reqConfig := &core.RequestConfig{}
+	if err = c.ShouldBindJSON(reqConfig); err != nil {
+		err = InvalidBody(fmt.Sprintf("%s", err))
+		return
+	}
+	var nlc *netloc.Netloc
+	nlc, err = core.NetlocFromString(n)
+	if err == nil {
+		n, r, err := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Add(nlc, reqConfig)
+		if err == nil {
+			result = sth.Result{
+				"replaced": sth.Result{
+					"netloc": n,
+					"rule":   r,
+				},
+				"active": sth.Result{
+					"netloc": nlc,
+					"rule":   reqConfig,
+				},
+			}
+		}
+	}
+	return
+}
+
+// GetRequestConfig TODO
+func (ctrl *Controller) GetRequestConfig(c *gin.Context) (result sth.Result, err error) {
+	n := c.Query("netloc")
+	if n == "" {
+		result = sth.Result{"rules": ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).GetAll()}
+		return
+	}
+	var nlc *netloc.Netloc
+	nlc, err = core.NetlocFromString(n)
+	if err == nil {
+		n, r := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Get(nlc)
+		if n == nil {
+			err = core.NotExistError(nlc.String())
+		} else {
+			result = sth.Result{"netloc": n, "rule": r}
+		}
+	} else {
+		err = InvalidQuery(fmt.Sprintf("netloc: %s", err))
+	}
+
+	return
+}
+
+// MatchRequestConfig TODO
+func (ctrl *Controller) MatchRequestConfig(c *gin.Context) (result sth.Result, err error) {
+	uri := c.Query("uri")
+	n, r := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).MatchURI(uri)
+	if n == nil {
+		err = core.NotExistError(uri)
+	} else {
+		result = sth.Result{"netloc": n, "rule": r}
+	}
+
+	return
+}
+
+// DeleteRequestConfig TODO
+func (ctrl *Controller) DeleteRequestConfig(c *gin.Context) (result sth.Result, err error) {
+	n := c.Query("netloc")
+	var nlc *netloc.Netloc
+	nlc, err = core.NetlocFromString(n)
+	if err != nil {
+		return
+	}
+	r, e := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Delete(nlc)
+	if e != nil {
+		err = e
+	} else {
+		if r == nil {
+			err = core.NotExistError(nlc.String())
+		} else {
+			result = sth.Result{"netloc": nlc, "rule": r}
+		}
+	}
+
+	return
+}
+
+// TryRequestConfig TODO
+func (ctrl *Controller) TryRequestConfig(c *gin.Context) (result sth.Result, err error) {
+	var raw *request.RawRequest = &request.RawRequest{}
+	if err = c.ShouldBindJSON(raw); err != nil {
+		err = InvalidBody(fmt.Sprintf("%s", err))
+		return
+	}
+	var req *request.Request
+	req, err = request.NewRequest(raw)
+	if err == nil {
+		result = sth.Result{
+			"origin": req.Clone(),
+		}
+		nlc, rule := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Wrap(req)
+		if nlc != nil {
+			result["netloc"] = nlc
+			result["rule"] = rule
+		}
+		result["request"] = req
+	}
+
 	return
 }
 
@@ -208,4 +319,9 @@ func (ctrl *Controller) Queues(c *gin.Context) (result sth.Result, err error) {
 		result = ctrl.QueueBox.Queues(int(k))
 	}
 	return
+}
+
+// GetConfig TODO
+func (ctrl *Controller) GetConfig(c *gin.Context) (result sth.Result, err error) {
+	return ctrl.Conf().AllSettings(), nil
 }

@@ -99,13 +99,13 @@ $(GOIMPORTS):
 test-unit:
 	@echo
 	@echo  "==> Running unit tests <=="
-	GO111MODULE=on go test -run $(TESTS) $(PKG) $(TESTFLAGS)
+	GO111MODULE=on go test $(GOFLAGS) -run $(TESTS) $(PKG) $(TESTFLAGS)
 
 .PHONY: test-bench
 test-bench:
 	@echo
 	@echo  "==> Running benchmark tests <=="
-	GO111MODULE=on go test -bench $(TESTS) $(PKG)
+	GO111MODULE=on go test $(GOFLAGS) -bench $(TESTS) $(PKG)
 
 .PHONY: test-coverage
 test-coverage:
