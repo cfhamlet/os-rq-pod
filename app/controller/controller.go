@@ -155,17 +155,42 @@ func (ctrl *Controller) DeleteRequestConfig(c *gin.Context) (result sth.Result, 
 	n := c.Query("netloc")
 	var nlc *netloc.Netloc
 	nlc, err = core.NetlocFromString(n)
-	if err == nil {
-		r, e := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Delete(nlc)
-		if e != nil {
-			err = e
+	if err != nil {
+		return
+	}
+	r, e := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Delete(nlc)
+	if e != nil {
+		err = e
+	} else {
+		if r == nil {
+			err = core.NotExistError(nlc.String())
 		} else {
-			if r == nil {
-				err = core.NotExistError(nlc.String())
-			} else {
-				result = sth.Result{"netloc": nlc, "rule": r}
-			}
+			result = sth.Result{"netloc": nlc, "rule": r}
 		}
+	}
+
+	return
+}
+
+// TryRequestConfig TODO
+func (ctrl *Controller) TryRequestConfig(c *gin.Context) (result sth.Result, err error) {
+	var raw *request.RawRequest = &request.RawRequest{}
+	if err = c.ShouldBindJSON(raw); err != nil {
+		err = InvalidBody(fmt.Sprintf("%s", err))
+		return
+	}
+	var req *request.Request
+	req, err = request.NewRequest(raw)
+	if err == nil {
+		result = sth.Result{
+			"origin": req.Clone(),
+		}
+		nlc, rule := ctrl.GetExtension("reqwrapper").(*core.RequestWrapper).Wrap(req)
+		if nlc != nil {
+			result["netloc"] = nlc
+			result["rule"] = rule
+		}
+		result["request"] = req
 	}
 
 	return
@@ -294,4 +319,9 @@ func (ctrl *Controller) Queues(c *gin.Context) (result sth.Result, err error) {
 		result = ctrl.QueueBox.Queues(int(k))
 	}
 	return
+}
+
+// GetConfig TODO
+func (ctrl *Controller) GetConfig(c *gin.Context) (result sth.Result, err error) {
+	return ctrl.Conf().AllSettings(), nil
 }
