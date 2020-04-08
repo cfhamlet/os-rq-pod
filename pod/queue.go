@@ -237,7 +237,27 @@ func (queue *Queue) View(start int64, end int64) (result sth.Result, err error) 
 	result["redis"] = sth.Result{
 		"_cost_ms_": utils.SinceMS(t),
 	}
-	result["requests"] = requests
+	out := []map[string]interface{}{}
+	for _, raw := range requests {
+		item := map[string]interface{}{
+			"raw": raw,
+		}
+		req := &request.Request{}
+		err = json.Unmarshal([]byte(raw), req)
+		if err != nil {
+			item["err"] = err
+		} else {
+			item["origin"] = req.Clone()
+			nlc, rule := queue.wrapper.Wrap(req)
+			if nlc != nil {
+				item["netloc"] = nlc
+				item["rule"] = rule
+			}
+			item["request"] = req
+		}
+		out = append(out, item)
+	}
+	result["requests"] = out
 	result["lrange"] = []int64{start, end}
 	return
 }
