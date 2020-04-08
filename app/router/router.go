@@ -33,7 +33,9 @@ func InitAPIRouter(g ginserv.RouterGroup, serv *core.Core) {
 		{M: g.POST, P: "/system/ctrl/pause/", H: ctrl.Pause},
 		{M: g.POST, P: "/system/ctrl/resume/", H: ctrl.Resume},
 
+		{M: g.GET, P: "/system/config/", H: ctrl.GetConfig},
 		{M: g.POST, P: "/system/config/request/", H: ctrl.AddRequestConfig},
+		{M: g.POST, P: "/system/config/request/try/", H: ctrl.TryRequestConfig},
 		{M: g.GET, P: "/system/config/request/", H: ctrl.GetRequestConfig},
 		{M: g.GET, P: "/system/config/request/match/", H: ctrl.MatchRequestConfig},
 		{M: g.DELETE, P: "/system/config/request/", H: ctrl.DeleteRequestConfig},
