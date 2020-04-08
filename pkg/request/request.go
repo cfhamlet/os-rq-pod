@@ -21,6 +21,14 @@ type Request struct {
 	*utils.ParsedURL
 }
 
+// Clone TODO
+func (req *Request) Clone() *Request {
+	b, _ := req.MarshalJSON()
+	new := &Request{}
+	_ = json.Unmarshal(b, new)
+	return new
+}
+
 // MarshalJSON TODO
 func (req *Request) MarshalJSON() ([]byte, error) {
 	return json.Marshal(req.RawRequest)
