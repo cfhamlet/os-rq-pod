@@ -125,7 +125,7 @@ func (wrapper *RequestWrapper) Setup() error {
 	wrapper.matcher = matcher.New()
 	err := wrapper.Load()
 	if err == nil {
-		nlcAdmin, _ := wrapper.matcher.MatchHost(AdminURI)
+		nlcAdmin, _ := wrapper.matcher.Get(netloc.New(AdminURI, "", ""))
 		if nlcAdmin == nil {
 			log.Logger.Warning("no _ADMIN_ request config")
 			wrapper.loadAdminFromLocal()
