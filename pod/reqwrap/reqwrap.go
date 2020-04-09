@@ -1,6 +1,7 @@
-package pod
+package reqwrap
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/serv"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
+	"github.com/cfhamlet/os-rq-pod/pod/global"
+	"github.com/go-redis/redis/v7"
 )
 
 // SpcKeyReplace TODO
@@ -19,6 +22,9 @@ const SpcKeyReplace = "_replace_"
 
 // AdminURI TODO
 const AdminURI = "_ADMIN_"
+
+// AdminNetloc TODO
+var AdminNetloc = netloc.New(AdminURI, "", "")
 
 // DefaultRequestConfig TODO
 var DefaultRequestConfig = &RequestConfig{
@@ -38,14 +44,15 @@ type RequestConfig struct {
 
 // RequestWrapper TODO
 type RequestWrapper struct {
-	core    *Core
+	*serv.Serv
+	client  *redis.Client
 	matcher *matcher.Matcher
 	*sync.RWMutex
 }
 
-// NewRequestWrapper TODO
-func NewRequestWrapper(core *Core) *RequestWrapper {
-	return &RequestWrapper{core, nil, &sync.RWMutex{}}
+// New TODO
+func New(serv *serv.Serv, client *redis.Client) *RequestWrapper {
+	return &RequestWrapper{serv, client, matcher.New(), &sync.RWMutex{}}
 }
 
 // Add TODO
@@ -54,7 +61,7 @@ func (wrapper *RequestWrapper) Add(nlc *netloc.Netloc, reqConfig *RequestConfig)
 	defer wrapper.Unlock()
 	j, err := json.Marshal(reqConfig)
 	if err == nil {
-		_, err = wrapper.core.Client().HSet(RedisRequestConfigKey, nlc.String(), string(j)).Result()
+		_, err = wrapper.client.HSet(global.RedisRequestConfigKey, nlc.String(), string(j)).Result()
 	}
 	if err == nil {
 		n, r := wrapper.matcher.Load(nlc, reqConfig)
@@ -107,9 +114,9 @@ func (wrapper *RequestWrapper) Delete(nlc *netloc.Netloc) (*RequestConfig, error
 	defer wrapper.Unlock()
 	n, _ := wrapper.matcher.Get(nlc)
 	if n == nil {
-		return nil, NotExistError(nlc.String())
+		return nil, global.NotExistError(nlc.String())
 	}
-	_, err := wrapper.core.Client().HDel(RedisRequestConfigKey, nlc.String()).Result()
+	_, err := wrapper.client.HDel(global.RedisRequestConfigKey, nlc.String()).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -117,15 +124,14 @@ func (wrapper *RequestWrapper) Delete(nlc *netloc.Netloc) (*RequestConfig, error
 	if n != nil {
 		return r.(*RequestConfig), nil
 	}
-	return nil, NotExistError(nlc.String())
+	return nil, global.NotExistError(nlc.String())
 }
 
-// Setup TODO
-func (wrapper *RequestWrapper) Setup() error {
-	wrapper.matcher = matcher.New()
+// OnStart TODO
+func (wrapper *RequestWrapper) OnStart(context.Context) error {
 	err := wrapper.Load()
 	if err == nil {
-		nlcAdmin, _ := wrapper.matcher.Get(netloc.New(AdminURI, "", ""))
+		nlcAdmin, _ := wrapper.matcher.Get(AdminNetloc)
 		if nlcAdmin == nil {
 			log.Logger.Warning("no _ADMIN_ request config")
 			wrapper.loadAdminFromLocal()
@@ -134,9 +140,14 @@ func (wrapper *RequestWrapper) Setup() error {
 	return err
 }
 
+// OnStop TODO
+func (wrapper *RequestWrapper) OnStop(context.Context) error {
+	return nil
+}
+
 func (wrapper *RequestWrapper) loadAdminFromLocal() {
 	configAdmin := DefaultRequestConfig
-	localConfig := wrapper.core.Conf().GetStringMap("request")
+	localConfig := wrapper.Conf().GetStringMap("request")
 	if len(localConfig) > 0 {
 		j, err := json.Marshal(localConfig)
 		if err != nil {
@@ -161,8 +172,8 @@ func NetlocFromString(s string) (*netloc.Netloc, error) {
 
 // Load TODO
 func (wrapper *RequestWrapper) Load() error {
-	scanner := utils.NewScanner(wrapper.core.Client(),
-		"hscan", RedisRequestConfigKey, "*", 1000)
+	scanner := utils.NewScanner(wrapper.client,
+		"hscan", global.RedisRequestConfigKey, "*", 1000)
 
 	log.Logger.Info("load request config start")
 	err := scanner.Scan(
@@ -170,7 +181,7 @@ func (wrapper *RequestWrapper) Load() error {
 			isKey := false
 			var nlc *netloc.Netloc
 			for _, key := range keys {
-				err = wrapper.core.SetStatus(serv.Preparing, true)
+				err = wrapper.SetStatus(serv.Preparing)
 				if err != nil {
 					break
 				}
@@ -325,7 +336,7 @@ func (wrapper *RequestWrapper) Wrap(req *request.Request) (*netloc.Netloc, *Requ
 		reqConfig = rule.(*RequestConfig)
 		wrapper.Merge(req, reqConfig, false)
 	}
-	nlcAdmin, ruleAdmin := wrapper.matcher.Match(AdminURI, "", "")
+	nlcAdmin, ruleAdmin := wrapper.matcher.Get(AdminNetloc)
 	if nlcAdmin != nil {
 		reqConfigAdmin := ruleAdmin.(*RequestConfig)
 		wrapper.Merge(req, reqConfigAdmin, true)

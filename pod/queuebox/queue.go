@@ -1,4 +1,4 @@
-package pod
+package queuebox
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
+	"github.com/cfhamlet/os-rq-pod/pod/global"
 	"github.com/go-redis/redis/v7"
 )
 
@@ -22,7 +23,6 @@ type Queue struct {
 	qsize     int64
 	queuing   int64
 	dequeuing int64
-	wrapper   *RequestWrapper
 }
 
 // Status TODO
@@ -36,11 +36,11 @@ func (queue *Queue) SetStatus(newStatus QueueStatus) (err error) {
 	if oldStatus == newStatus {
 		return
 	}
-	f := queue.box.core.Client().SAdd
+	f := queue.box.client.SAdd
 	if oldStatus == Paused {
-		f = queue.box.core.Client().SRem
+		f = queue.box.client.SRem
 	}
-	_, err = f(RedisPausedQueuesKey, queue.ID().String()).Result()
+	_, err = f(global.RedisPausedQueuesKey, queue.ID().String()).Result()
 	if err == nil {
 		queue.status = newStatus
 	}
@@ -65,7 +65,6 @@ func NewQueue(box *QueueBox, id sth.QueueID) *Queue {
 		RedisKeyFromQueueID(id),
 		Working,
 		0, 0, 0,
-		box.core.GetExtension("reqwrapper").(*RequestWrapper),
 	}
 }
 
@@ -75,9 +74,9 @@ func (queue *Queue) Sync() (result sth.Result, err error) {
 	oldSize := queue.qsize
 	oldStatus := queue.status
 
-	pipe := queue.box.core.Client().Pipeline()
+	pipe := queue.box.client.Pipeline()
 	pipe.LLen(queue.redisKey)
-	pipe.SIsMember(RedisPausedQueuesKey, queue.ID().String())
+	pipe.SIsMember(global.RedisPausedQueuesKey, queue.ID().String())
 	var cmders []redis.Cmder
 	t := time.Now()
 	cmders, err = pipe.Exec()
@@ -169,7 +168,7 @@ func (queue *Queue) Push(request *request.Request) (result sth.Result, err error
 	defer queue.decrQueuing(1)
 
 	if queuing > 198405 {
-		err = UnavailableError(fmt.Sprintf("%s too many push requests %d", queue.ID(), queuing))
+		err = global.UnavailableError(fmt.Sprintf("%s too many push requests %d", queue.ID(), queuing))
 		return
 	}
 
@@ -179,7 +178,7 @@ func (queue *Queue) Push(request *request.Request) (result sth.Result, err error
 	request.Meta["_pod_in_"] = time.Now().Unix()
 	j, err := json.Marshal(request)
 	if err == nil {
-		rsize, err := queue.box.core.Client().RPush(queue.redisKey, j).Result()
+		rsize, err := queue.box.client.RPush(queue.redisKey, j).Result()
 		if err == nil {
 			qsize := queue.updateInput(1)
 			result = sth.Result{"rsize": rsize, "qsize": qsize}
@@ -198,19 +197,19 @@ func (queue *Queue) Pop() (req *request.Request, qsize int64, err error) {
 	if dequeuing > qsize || dequeuing > 198405 {
 		msg := fmt.Sprintf("%s qsize %d, dequeuing %d", queue.ID(), qsize, dequeuing)
 		log.Logger.Debug(msg)
-		err = UnavailableError(msg)
+		err = global.UnavailableError(msg)
 		return
 	}
 
 	var r string
-	r, err = queue.box.core.Client().LPop(queue.redisKey).Result()
+	r, err = queue.box.client.LPop(queue.redisKey).Result()
 	if err == nil {
 		qsize = queue.updateOutput(1)
 		req = &request.Request{}
 		err = json.Unmarshal([]byte(r), req)
 	}
 	if err == nil {
-		queue.wrapper.Wrap(req)
+		queue.box.reqWrapper.Wrap(req)
 	}
 	return
 }
@@ -232,7 +231,7 @@ func (queue *Queue) View(start int64, end int64) (result sth.Result, err error) 
 
 	t := time.Now()
 	var requests []string
-	requests, err = queue.box.core.Client().LRange(queue.redisKey, start, end).Result()
+	requests, err = queue.box.client.LRange(queue.redisKey, start, end).Result()
 	result = sth.Result{}
 	result["redis"] = sth.Result{
 		"_cost_ms_": utils.SinceMS(t),
@@ -248,7 +247,7 @@ func (queue *Queue) View(start int64, end int64) (result sth.Result, err error) 
 			item["err"] = err
 		} else {
 			item["origin"] = req.Clone()
-			nlc, rule := queue.wrapper.Wrap(req)
+			nlc, rule := queue.box.reqWrapper.Wrap(req)
 			if nlc != nil {
 				item["netloc"] = nlc
 				item["rule"] = rule
@@ -274,7 +273,7 @@ func (queue *Queue) Clear(erase bool) (result sth.Result, err error) {
 	result["drop"] = 0
 
 	t := time.Now()
-	err = queue.box.core.Client().Watch(func(tx *redis.Tx) error {
+	err = queue.box.client.Watch(func(tx *redis.Tx) error {
 		drop, e := tx.LLen(queue.redisKey).Result()
 		if e == nil {
 			_, e = tx.Del(queue.redisKey).Result()
@@ -283,7 +282,7 @@ func (queue *Queue) Clear(erase bool) (result sth.Result, err error) {
 			result["drop"] = drop
 		}
 		if e == nil && erase {
-			_, e = tx.SRem(RedisPausedQueuesKey, queue.ID().String()).Result()
+			_, e = tx.SRem(global.RedisPausedQueuesKey, queue.ID().String()).Result()
 		}
 		return e
 	}, queue.redisKey)

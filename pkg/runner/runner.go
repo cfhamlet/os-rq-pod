@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"sync"
 
 	"github.com/cfhamlet/os-rq-pod/pkg/serv"
 	messagebus "github.com/vardius/message-bus"
@@ -11,7 +12,7 @@ import (
 // Runner TODO
 type Runner struct {
 	messagebus.MessageBus
-	ready chan struct{}
+	ready *sync.WaitGroup
 	fail  chan error
 }
 
@@ -19,19 +20,35 @@ type Runner struct {
 func New() *Runner {
 	return &Runner{
 		messagebus.New(100),
-		make(chan struct{}),
+		nil,
 		make(chan error),
 	}
 }
 
 // WaitReady TODO
-func (runner *Runner) WaitReady() chan struct{} {
+func (runner *Runner) WaitReady() {
+	if runner.ready != nil {
+		runner.ready.Wait()
+	}
+}
+
+// AddReady TODO
+func (runner *Runner) AddReady() *sync.WaitGroup {
+	if runner.ready == nil {
+		runner.ready = &sync.WaitGroup{}
+	}
+	runner.ready.Add(1)
 	return runner.ready
 }
 
-// Ready TODO
-func (runner *Runner) Ready() {
-	runner.ready <- struct{}{}
+// PopReady TODO
+func (runner *Runner) PopReady() *sync.WaitGroup {
+	if runner.ready == nil {
+		return nil
+	}
+	ready := runner.ready
+	runner.ready = &sync.WaitGroup{}
+	return ready
 }
 
 // Fail TODO
@@ -44,15 +61,32 @@ func (runner *Runner) WaitFail() chan error {
 	return runner.fail
 }
 
-// ServeFlowLifecycle TODO
-func ServeFlowLifecycle(lc fx.Lifecycle, serv serv.IServ, runner *Runner) {
+// ServWait TODO
+func ServWait(lc fx.Lifecycle, serv serv.IServ, runner *Runner) {
+	servLifecycle(lc, serv, runner, true)
+}
+
+// ServGo TODO
+func ServGo(lc fx.Lifecycle, serv serv.IServ, runner *Runner) {
+	servLifecycle(lc, serv, runner, false)
+}
+
+func servLifecycle(lc fx.Lifecycle, serv serv.IServ, runner *Runner, waitReady bool) {
 	lc.Append(
 		fx.Hook{
-			OnStart: func(context.Context) error {
+			OnStart: func(ctx context.Context) error {
+				var wait *sync.WaitGroup
+				if waitReady {
+					wait = runner.PopReady()
+				}
+				ready := runner.AddReady()
 				go func() {
-					err := serv.OnStart()
+					if wait != nil {
+						wait.Wait()
+					}
+					err := serv.OnStart(ctx)
 					if err == nil {
-						runner.Ready()
+						ready.Done()
 					} else {
 						runner.Fail(err)
 					}
@@ -60,9 +94,10 @@ func ServeFlowLifecycle(lc fx.Lifecycle, serv serv.IServ, runner *Runner) {
 				return nil
 			},
 			OnStop: func(ctx context.Context) error {
-				return serv.OnStop()
+				return serv.OnStop(ctx)
 			},
 		})
+
 }
 
 // Run TODO

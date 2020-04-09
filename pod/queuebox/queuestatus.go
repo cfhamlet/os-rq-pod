@@ -1,6 +1,6 @@
 //go:generate stringer -type=QueueStatus -linecomment
 
-package pod
+package queuebox
 
 import (
 	"bytes"

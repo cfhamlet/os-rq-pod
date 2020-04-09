@@ -1,15 +1,16 @@
-package pod
+package queuebox
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/cfhamlet/os-rq-pod/pkg/sth"
+	"github.com/cfhamlet/os-rq-pod/pod/global"
 )
 
 // RedisKeyFromQueueID TODO
 func RedisKeyFromQueueID(qid sth.QueueID) string {
-	return RedisQueueKeyPrefix + qid.String()
+	return global.RedisQueueKeyPrefix + qid.String()
 }
 
 // QueueIDFromString TODO
@@ -25,10 +26,10 @@ func QueueIDFromString(key string) (qid sth.QueueID, err error) {
 
 // QueueIDFromRedisKey TODO
 func QueueIDFromRedisKey(key string) (qid sth.QueueID, err error) {
-	if !strings.HasPrefix(key, RedisQueueKeyPrefix) {
-		err = fmt.Errorf(`invalid redis key %s, not starts with "%s"`, key, RedisQueueKeyPrefix)
+	if !strings.HasPrefix(key, global.RedisQueueKeyPrefix) {
+		err = fmt.Errorf(`invalid redis key %s, not starts with "%s"`, key, global.RedisQueueKeyPrefix)
 	} else {
-		qid, err = QueueIDFromString(key[len(RedisQueueKeyPrefix):])
+		qid, err = QueueIDFromString(key[len(global.RedisQueueKeyPrefix):])
 	}
 
 	return

@@ -1,21 +1,30 @@
 package serv
 
 import (
+	"context"
 	"os"
 	"sync"
 
+	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/shirou/gopsutil/process"
 	"github.com/spf13/viper"
+	messagebus "github.com/vardius/message-bus"
 )
+
+// IServ TODO
+type IServ interface {
+	OnStart(context.Context) error
+	OnStop(context.Context) error
+}
 
 // Serv TODO
 type Serv struct {
 	conf    *viper.Viper
 	process *process.Process
-	*ExtensionManager
-	status Status
+	status  Status
+	message messagebus.MessageBus
 	*sync.RWMutex
 }
 
@@ -28,46 +37,54 @@ func New(conf *viper.Viper) *Serv {
 	serv := &Serv{
 		conf,
 		proc,
-		nil,
 		Init,
+		messagebus.New(100),
 		&sync.RWMutex{},
 	}
-	extMgr := NewExtensionManager(serv)
-	serv.ExtensionManager = extMgr
 	return serv
 }
 
 // OnStart TODO
-func (serv *Serv) OnStart() error {
-	return nil
+func (serv *Serv) OnStart(ctx context.Context) (err error) {
+	serv.Lock()
+	defer serv.Unlock()
+	err = serv.setStatus(Preparing)
+	if err == nil {
+		err = serv.setStatus(Working)
+	}
+	switch err.(type) {
+	case *StatusConflictError:
+		if StopStatus(serv.status) {
+			log.Logger.Warning("stop when starting")
+			err = nil
+		}
+	}
+	return
 }
 
 // OnStop TODO
-func (serv *Serv) OnStop() error {
-	return nil
+func (serv *Serv) OnStop(ctx context.Context) (err error) {
+	err = serv.SetStatus(Stopping)
+	if err == nil {
+		err = serv.SetStatus(Stopping)
+	}
+	return
 }
 
 // Status TODO
-func (serv *Serv) Status(lock bool) Status {
-	if lock {
-		serv.RLock()
-		defer serv.RUnlock()
-	}
+func (serv *Serv) Status() Status {
+	serv.RLock()
+	defer serv.RUnlock()
 	return serv.status
 }
 
-// ProcessMemory TODO
-func (serv *Serv) ProcessMemory() *process.MemoryInfoStat {
-	return utils.MemoryInfo(serv.process)
+// Process TODO
+func (serv *Serv) Process() *process.Process {
+	return serv.process
 }
 
-// CPUPercent TODO
-func (serv *Serv) CPUPercent() float64 {
-	return utils.CPUPercent(serv.process)
-}
-
-// Getpid TODO
-func (serv *Serv) Getpid() int {
+// PID TODO
+func (serv *Serv) PID() int {
 	return os.Getpid()
 }
 
@@ -128,20 +145,16 @@ func (serv *Serv) setStatus(newStatus Status) (err error) {
 	if err == nil {
 		serv.status = newStatus
 	}
+	serv.message.Publish(ServStatusChanged, oldStatus, newStatus)
 	return
 
 }
 
 // SetStatus TODO
-func (serv *Serv) SetStatus(newStatus Status, lock bool) (err error) {
-	if !lock {
-		return serv.setStatus(newStatus)
-	}
-	_, err = serv.DoWithLock(
-		func() (interface{}, error) {
-			return nil, serv.setStatus(newStatus)
-		}, false)
-	return
+func (serv *Serv) SetStatus(newStatus Status) (err error) {
+	serv.Lock()
+	defer serv.Unlock()
+	return serv.setStatus(newStatus)
 }
 
 // DoWithLock TODO
@@ -159,42 +172,47 @@ func (serv *Serv) DoWithLock(f func() (interface{}, error), rLock bool) (interfa
 // DoWithLockOnWorkStatus TODO
 func (serv *Serv) DoWithLockOnWorkStatus(f func() (interface{}, error), rLock bool, mustWorking bool) (interface{}, error) {
 	return serv.DoWithLock(func() (interface{}, error) {
-		if !WorkStatus(serv.Status(false)) ||
-			(mustWorking && serv.Status(false) != Working) {
-			return nil, &StatusError{serv.Status(false)}
+		if !WorkStatus(serv.status) ||
+			(mustWorking && serv.status != Working) {
+			return nil, &StatusError{serv.status}
 		}
 		return f()
 
 	}, rLock)
 }
 
-// MetaInfo TODO
-func (serv *Serv) MetaInfo() (result sth.Result) {
+// Info TODO
+func (serv *Serv) Info() (result sth.Result) {
 	return sth.Result{
-		"status": serv.Status(false),
+		"status": serv.Status(),
 		"process": sth.Result{
-			"pid":    serv.Getpid(),
-			"memory": serv.ProcessMemory(),
+			"pid":    serv.PID(),
+			"memory": utils.MemoryInfo(serv.process),
 			"cpu": sth.Result{
-				"percent": serv.CPUPercent(),
+				"percent": utils.CPUPercent(serv.process),
 			},
 		},
 	}
 }
 
-// Switch TODO
-func (serv *Serv) Switch(pauseOrResume bool) (sth.Result, error) {
+// Toggle TODO
+func (serv *Serv) Toggle(pauseOrResume bool) (sth.Result, error) {
 	result, err := serv.DoWithLockOnWorkStatus(
 		func() (result interface{}, err error) {
 			status := Working
 			if !pauseOrResume {
 				status = Paused
 			}
-			err = serv.SetStatus(status, false)
+			err = serv.setStatus(status)
 			if err == nil {
-				result = serv.MetaInfo()
+				result = serv.Info()
 			}
 			return
 		}, false, false)
 	return result.(sth.Result), err
+}
+
+// Message TODO
+func (serv *Serv) Message() messagebus.MessageBus {
+	return serv.message
 }

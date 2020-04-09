@@ -1,4 +1,4 @@
-package ginserv
+package route
 
 import (
 	"net/http"
@@ -13,17 +13,10 @@ type HandlerFunc func(*gin.Context) (sth.Result, error)
 // ErrorCodeFunc TODO
 type ErrorCodeFunc func(err error) int
 
-// RouterRecord TODO
-type RouterRecord struct {
-	M IRoutesHTTPFunc
-	P string
-	H HandlerFunc
-}
-
 // Bind TODO
-func Bind(records []RouterRecord, efunc ErrorCodeFunc) {
-	for _, r := range records {
-		r.M(r.P, HandleError(r.H, efunc))
+func Bind(routes []*Route, efunc ErrorCodeFunc) {
+	for _, route := range routes {
+		route.Bind(efunc)
 	}
 }
 

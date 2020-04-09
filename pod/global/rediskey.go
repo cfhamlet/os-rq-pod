@@ -1,4 +1,4 @@
-package pod
+package global
 
 // RedisQueueKeyPrefix TODO
 const RedisQueueKeyPrefix = "rq:q:"
