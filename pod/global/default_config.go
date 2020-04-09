@@ -1,4 +1,4 @@
-package config
+package global
 
 // EnvPrefix for env
 const EnvPrefix = "RQ_POD"

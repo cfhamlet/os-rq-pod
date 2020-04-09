@@ -1,33 +1,41 @@
-package pod
+package queuebox
 
 import (
+	"context"
+
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/serv"
 	"github.com/cfhamlet/os-rq-pod/pkg/slicemap"
 	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
+	"github.com/cfhamlet/os-rq-pod/pod/global"
+	"github.com/cfhamlet/os-rq-pod/pod/reqwrap"
 	"github.com/go-redis/redis/v7"
 )
 
 // QueueBox TODO
 type QueueBox struct {
-	core         *Core
+	*serv.Serv
 	stats        *Stats
 	statusQueues map[QueueStatus]*slicemap.Viewer
+	client       *redis.Client
+	reqWrapper   *reqwrap.RequestWrapper
 	*utils.BulkLock
 }
 
-// NewQueueBox TODO
-func NewQueueBox(core *Core) *QueueBox {
+// New TODO
+func New(serv *serv.Serv, client *redis.Client, reqWrapper *reqwrap.RequestWrapper) *QueueBox {
 	statusQueues := map[QueueStatus]*slicemap.Viewer{}
 	for _, status := range QueueStatusList {
 		statusQueues[status] = slicemap.NewViewer(nil)
 	}
 	return &QueueBox{
-		core,
+		serv,
 		NewStats(),
 		statusQueues,
+		client,
+		reqWrapper,
 		utils.NewBulkLock(1024),
 	}
 }
@@ -35,22 +43,18 @@ func NewQueueBox(core *Core) *QueueBox {
 // CallByQueue TODO
 type CallByQueue func(*Queue) (sth.Result, error)
 
-// Setup TODO
-func (box *QueueBox) Setup() (err error) {
-	err = box.Load()
-	if err == nil {
-		box.core.QueueBox = box
-	}
-	return
+// OnStart TODO
+func (box *QueueBox) OnStart(context.Context) error {
+	return box.Load()
 }
 
-// Cleanup TODO
-func (box *QueueBox) Cleanup() error {
+// OnStop TODO
+func (box *QueueBox) OnStop(context.Context) error {
 	return nil
 }
 
 func (box *QueueBox) doOnCoreWorking(f func() (sth.Result, error)) (sth.Result, error) {
-	r, e := box.core.DoWithLockOnWorkStatus(
+	r, e := box.DoWithLockOnWorkStatus(
 		func() (interface{}, error) {
 			return f()
 		}, true, true)
@@ -68,18 +72,18 @@ func (box *QueueBox) Load() (err error) {
 		{
 			"scan",
 			"",
-			RedisQueueKeyPrefix + "*",
+			global.RedisQueueKeyPrefix + "*",
 			QueueIDFromRedisKey,
 		},
 		{
 			"sscan",
-			RedisPausedQueuesKey,
+			global.RedisPausedQueuesKey,
 			"*",
 			QueueIDFromString,
 		},
 	} {
 
-		scanner := utils.NewScanner(box.core.Client(),
+		scanner := utils.NewScanner(box.client,
 			p.opt, p.key, p.pat, 1000)
 		log.Logger.Infof("load start %s %s %s", p.opt, p.key, p.pat)
 		err = box.load(scanner, p.qidf)
@@ -95,7 +99,7 @@ func (box *QueueBox) load(scanner *utils.Scanner, keyToQueueID func(string) (sth
 	return scanner.Scan(
 		func(keys []string) (err error) {
 			for _, key := range keys {
-				err = box.core.SetStatus(serv.Preparing, true)
+				err = box.Serv.SetStatus(serv.Preparing)
 				if err != nil {
 					break
 				}
@@ -147,7 +151,7 @@ func (box *QueueBox) withLockMustExist(qid sth.QueueID, f CallByQueue, rLock boo
 			return f(item.(*Queue))
 		}
 	}
-	err = NotExistError(utils.Text(qid))
+	err = global.NotExistError(utils.Text(qid))
 	return
 }
 
@@ -162,7 +166,7 @@ func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err e
 		if item == nil {
 			pausedQueues.View(iid, func(item slicemap.Item) {
 				if item != nil {
-					err = UnavailableError(utils.Text(qid))
+					err = global.UnavailableError(utils.Text(qid))
 				}
 			})
 		} else {
@@ -195,25 +199,21 @@ func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err e
 		}
 	} else {
 		pausedQueues.Add(newQueue)
-		err = UnavailableError(utils.Text(qid))
+		err = global.UnavailableError(utils.Text(qid))
 	}
 	box.Unlock(iid)
 	return
 }
 
-func (box *QueueBox) xxPushRequest(raw *request.RawRequest) (result sth.Result, err error) {
-	req, err := request.NewRequest(raw)
-	if err == nil {
-		return box.pushRequest(req)
-	}
-	return
+func (box *QueueBox) xxPushRequest(req *request.Request) (result sth.Result, err error) {
+	return box.pushRequest(req)
 }
 
 // PushRequest TODO
-func (box *QueueBox) PushRequest(raw *request.RawRequest) (result sth.Result, err error) {
+func (box *QueueBox) PushRequest(req *request.Request) (result sth.Result, err error) {
 	return box.doOnCoreWorking(
 		func() (sth.Result, error) {
-			return box.xxPushRequest(raw)
+			return box.xxPushRequest(req)
 		},
 	)
 }
@@ -230,9 +230,9 @@ func (box *QueueBox) xxPopRequest(qid sth.QueueID) (req *request.Request, err er
 			pausedQueues.View(iid, func(item slicemap.Item) {
 				reason := utils.Text(qid)
 				if item != nil {
-					err = UnavailableError(reason)
+					err = global.UnavailableError(reason)
 				} else {
-					err = NotExistError(reason)
+					err = global.NotExistError(reason)
 				}
 			})
 		} else {
@@ -256,7 +256,7 @@ func (box *QueueBox) xxPopRequest(qid sth.QueueID) (req *request.Request, err er
 
 // PopRequest TODO
 func (box *QueueBox) PopRequest(qid sth.QueueID) (req *request.Request, err error) {
-	r, e := box.core.DoWithLockOnWorkStatus(
+	r, e := box.DoWithLockOnWorkStatus(
 		func() (interface{}, error) {
 			return box.xxPopRequest(qid)
 		}, true, true)
@@ -423,6 +423,11 @@ func (box *QueueBox) syncQueue(queue *Queue) (result sth.Result, err error) {
 	return
 }
 
+// Stats TODO
+func (box *QueueBox) Stats() *Stats {
+	return box.stats
+}
+
 // SyncQueue TODO
 func (box *QueueBox) SyncQueue(qid sth.QueueID, force bool) (result sth.Result, err error) {
 	iid := qid.ItemID()
@@ -439,7 +444,7 @@ func (box *QueueBox) SyncQueue(qid sth.QueueID, force bool) (result sth.Result, 
 	}
 
 	if !force {
-		err = NotExistError(qid.String())
+		err = global.NotExistError(qid.String())
 		return
 	}
 	queue := NewQueue(box, qid)

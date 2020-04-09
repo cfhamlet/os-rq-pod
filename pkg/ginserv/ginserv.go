@@ -16,9 +16,6 @@ import (
 // RouterGroup TODO
 type RouterGroup gin.IRouter
 
-// IRoutesHTTPFunc TODO
-type IRoutesHTTPFunc func(string, ...gin.HandlerFunc) gin.IRoutes
-
 // NewEngine TODO
 func NewEngine(conf *viper.Viper) *gin.Engine {
 	debug := false

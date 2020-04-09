@@ -1,10 +1,10 @@
-package controller
+package controllers
 
 import (
 	"net/http"
 	"net/url"
 
-	core "github.com/cfhamlet/os-rq-pod/pod"
+	"github.com/cfhamlet/os-rq-pod/pod/global"
 )
 
 // ErrorCode TODO
@@ -13,9 +13,9 @@ func ErrorCode(err error) int {
 	switch err.(type) {
 	case *url.Error, InvalidQuery, InvalidBody:
 		code = http.StatusBadRequest
-	case core.NotExistError:
+	case global.NotExistError:
 		code = http.StatusNotFound
-	case core.UnavailableError, core.ExceedLimitError:
+	case global.UnavailableError, global.ExceedLimitError:
 		code = http.StatusNotAcceptable
 	default:
 		code = http.StatusInternalServerError
