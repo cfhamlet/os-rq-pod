@@ -11,8 +11,8 @@ http:
     path: "api"
 
 redis:
-  addr: "10.143.53.100:6379"
-  password: "root"
+  addr: "localhost:6379"
+  password: ""
   db: 0
 
 limit:
