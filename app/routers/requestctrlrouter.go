@@ -8,7 +8,7 @@ import (
 
 // RouteRequestCtrl TODO
 func RouteRequestCtrl(root ginserv.RouterGroup, ctrl *controllers.RequestController) {
-	g := root.Group("/request/")
+	g := root.Group("/queue/")
 	routes := []*route.Route{
 		route.New(g.POST, "/push/", ctrl.PushRequest),
 		route.New(g.POST, "/pop/", ctrl.PopRequest),
