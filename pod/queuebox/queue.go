@@ -210,6 +210,10 @@ func (queue *Queue) Pop() (req *request.Request, qsize int64, err error) {
 	}
 	if err == nil {
 		queue.box.reqWrapper.Wrap(req)
+		if req.Meta == nil {
+			req.Meta = make(map[string]interface{})
+		}
+		req.Meta["_pod_out_"] = time.Now().Unix()
 	}
 	return
 }
