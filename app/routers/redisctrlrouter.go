@@ -8,9 +8,9 @@ import (
 
 // RouteRedisCtrl TODO
 func RouteRedisCtrl(root ginserv.RouterGroup, ctrl *controllers.RedisController) {
-	g := root.Group("/system/info/")
+	g := root.Group("/redis/")
 	routes := []*route.Route{
-		route.New(g.GET, "/redis/", ctrl.RedisInfo),
+		route.New(g.GET, "/info/", ctrl.RedisInfo),
 	}
 	route.Bind(routes, controllers.ErrorCode)
 }

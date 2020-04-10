@@ -8,7 +8,7 @@ import (
 
 // RouteConfigCtrl TODO
 func RouteConfigCtrl(root ginserv.RouterGroup, ctrl *controllers.ConfigController) {
-	g := root.Group("/system/config/")
+	g := root.Group("/serv/config/")
 	routes := []*route.Route{
 		route.New(g.GET, "/", ctrl.GetConfig),
 	}

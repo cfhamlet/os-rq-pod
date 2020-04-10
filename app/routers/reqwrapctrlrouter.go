@@ -8,7 +8,7 @@ import (
 
 // RouteRequestWrapperCtrl TODO
 func RouteRequestWrapperCtrl(root ginserv.RouterGroup, ctrl *controllers.RequestWrapperController) {
-	g := root.Group("/system/config/request/")
+	g := root.Group("/request/config/")
 	routes := []*route.Route{
 		route.New(g.GET, "/", ctrl.GetRequestConfig),
 		route.New(g.POST, "/", ctrl.AddRequestConfig),
