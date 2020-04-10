@@ -8,11 +8,11 @@ import (
 
 // RouteServCtrl TODO
 func RouteServCtrl(root ginserv.RouterGroup, ctrl *controllers.ServController) {
-	g := root.Group("/system/")
+	g := root.Group("/serv/")
 	routes := []*route.Route{
-		route.New(g.POST, "/ctrl/pause/", ctrl.Pause),
-		route.New(g.POST, "/ctrl/resume/", ctrl.Resume),
-		route.New(g.GET, "/info/serv/", ctrl.Info),
+		route.New(g.POST, "/pause/", ctrl.Pause),
+		route.New(g.POST, "/resume/", ctrl.Resume),
+		route.New(g.GET, "/info/", ctrl.Info),
 	}
 	route.Bind(routes, controllers.ErrorCode)
 }
