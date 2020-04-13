@@ -91,7 +91,10 @@ func New(serv *serv.Serv, queueBox *queuebox.QueueBox, client *redis.Client) *Gu
 // OnStart TODO
 func (guard *Guard) OnStart(context.Context) error {
 	guard.maxRedisMemory = guard.Conf().GetInt64(RedisMemoryLimit)
-	guard.Serv.Message().Subscribe(redisconfig.ConfigUpdated, guard.updateLimit)
+	err := guard.Serv.Message().Subscribe(redisconfig.ConfigUpdated, guard.updateLimit)
+	if err != nil {
+		return err
+	}
 	guard.task = NewTask(guard)
 	guard.task.Start()
 	return nil
