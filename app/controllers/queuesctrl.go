@@ -7,22 +7,26 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/sth"
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/cfhamlet/os-rq-pod/pod/queuebox"
+	"github.com/cfhamlet/os-rq-pod/pod/redisguard"
 	"github.com/gin-gonic/gin"
 )
 
 // QueuesController TODO
 type QueuesController struct {
 	queueBox *queuebox.QueueBox
+	guard    *redisguard.Guard
 }
 
 // NewQueuesController TODO
-func NewQueuesController(queueBox *queuebox.QueueBox) *QueuesController {
-	return &QueuesController{queueBox}
+func NewQueuesController(queueBox *queuebox.QueueBox, guard *redisguard.Guard) *QueuesController {
+	return &QueuesController{queueBox, guard}
 }
 
 // QueuesInfo TODO
 func (ctrl *QueuesController) QueuesInfo(c *gin.Context) (sth.Result, error) {
-	return ctrl.queueBox.Info(), nil
+	info := ctrl.queueBox.Info()
+	info["redis"] = ctrl.guard.Info()
+	return info, nil
 }
 
 // ViewQueues TODO
