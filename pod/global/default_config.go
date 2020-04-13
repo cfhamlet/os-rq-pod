@@ -14,7 +14,7 @@ var DefaultConfig = map[string]interface{}{
 	"redis.password":     "",
 	"redis.db":           0,
 	"limit.http.size":    1 << 20,
-	"limit.redis.memory": 1 << 30,
+	"limit.redis.memory": int64(1 << 30),
 	"limit.request.num":  10000000,
 	"limit.queue.num":    1000,
 	"limit.queue.length": 10000,
