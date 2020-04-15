@@ -137,6 +137,9 @@ func (iter *CycleIter) Iter(f IterFunc) {
 		return
 	}
 	iter.cur = iter.cur % l
+	if iter.cur < 0 {
+		iter.cur = 0 - iter.cur
+	}
 
 	for i := 0; i < l; i++ {
 		b := f(iter.items[iter.cur])
@@ -176,6 +179,9 @@ func (iter *CycleStepIter) Iter(f IterFunc) {
 		return
 	}
 	iter.cur = iter.cur % l
+	if iter.cur < 0 {
+		iter.cur = 0 - iter.cur
+	}
 
 	for i := 0; i < iter.steps; i++ {
 		b := f(iter.items[iter.cur])
