@@ -184,7 +184,7 @@ func (serv *Serv) DoWithLockOnWorkStatus(f func() (interface{}, error), rLock bo
 // Info TODO
 func (serv *Serv) Info() (result sth.Result) {
 	return sth.Result{
-		"status": serv.Status(),
+		"status": serv.status,
 		"process": sth.Result{
 			"pid":    serv.PID(),
 			"memory": utils.MemoryInfo(serv.process),

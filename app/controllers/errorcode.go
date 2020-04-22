@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/cfhamlet/os-rq-pod/pkg/serv"
 	"github.com/cfhamlet/os-rq-pod/pod/global"
 )
 
@@ -15,7 +16,8 @@ func ErrorCode(err error) int {
 		code = http.StatusBadRequest
 	case global.NotExistError:
 		code = http.StatusNotFound
-	case global.UnavailableError, global.ExceedLimitError:
+	case global.UnavailableError, global.ExceedLimitError,
+		*serv.StatusError, *serv.StatusConflictError:
 		code = http.StatusNotAcceptable
 	default:
 		code = http.StatusInternalServerError
