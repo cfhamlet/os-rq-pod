@@ -58,6 +58,9 @@ func (box *QueueBox) doOnCoreWorking(f func() (sth.Result, error)) (sth.Result, 
 		func() (interface{}, error) {
 			return f()
 		}, true, true)
+	if r == nil {
+		return nil, e
+	}
 	return r.(sth.Result), e
 }
 
@@ -260,6 +263,9 @@ func (box *QueueBox) PopRequest(qid sth.QueueID) (req *request.Request, err erro
 		func() (interface{}, error) {
 			return box.xxPopRequest(qid)
 		}, true, true)
+	if r == nil {
+		return nil, e
+	}
 	return r.(*request.Request), e
 }
 
@@ -352,13 +358,12 @@ func (box *QueueBox) xxQueues(k int) sth.Result {
 }
 
 // Queues TODO
-func (box *QueueBox) Queues(k int) sth.Result {
-	r, _ := box.doOnCoreWorking(
+func (box *QueueBox) Queues(k int) (sth.Result, error) {
+	return box.doOnCoreWorking(
 		func() (sth.Result, error) {
 			return box.xxQueues(k), nil
 		},
 	)
-	return r
 }
 
 // Info TODO

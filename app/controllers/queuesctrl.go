@@ -71,7 +71,7 @@ func (ctrl *QueuesController) Queues(c *gin.Context) (result sth.Result, err err
 		err = InvalidQuery(fmt.Sprintf("k=%s [1, 1000]", qk))
 	}
 	if err == nil {
-		result = ctrl.queueBox.Queues(int(k))
+		result, err = ctrl.queueBox.Queues(int(k))
 	}
 	return
 }
