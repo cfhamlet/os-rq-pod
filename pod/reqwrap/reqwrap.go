@@ -20,11 +20,11 @@ import (
 // SpcKeyReplace TODO
 const SpcKeyReplace = "_replace_"
 
-// AdminURI TODO
-const AdminURI = "_ADMIN_"
+// RootURI TODO
+const RootURI = "_ROOT_"
 
-// AdminNetloc TODO
-var AdminNetloc = netloc.New(AdminURI, "", "")
+// RootNetloc TODO
+var RootNetloc = netloc.New(RootURI, "", "")
 
 // DefaultRequestConfig TODO
 var DefaultRequestConfig = &RequestConfig{
@@ -131,10 +131,10 @@ func (wrapper *RequestWrapper) Delete(nlc *netloc.Netloc) (*RequestConfig, error
 func (wrapper *RequestWrapper) OnStart(context.Context) error {
 	err := wrapper.Load()
 	if err == nil {
-		nlcAdmin, _ := wrapper.matcher.Get(AdminNetloc)
-		if nlcAdmin == nil {
-			log.Logger.Warning("no _ADMIN_ request config")
-			wrapper.loadAdminFromLocal()
+		nlcRoot, _ := wrapper.matcher.Get(RootNetloc)
+		if nlcRoot == nil {
+			log.Logger.Warning("no _ROOT_ request config")
+			wrapper.loadRootFromLocal()
 		}
 	}
 	return err
@@ -145,20 +145,20 @@ func (wrapper *RequestWrapper) OnStop(context.Context) error {
 	return nil
 }
 
-func (wrapper *RequestWrapper) loadAdminFromLocal() {
-	configAdmin := DefaultRequestConfig
+func (wrapper *RequestWrapper) loadRootFromLocal() {
+	configRoot := DefaultRequestConfig
 	localConfig := wrapper.Conf().GetStringMap("request")
 	if len(localConfig) > 0 {
 		j, err := json.Marshal(localConfig)
 		if err != nil {
 			panic(err)
 		}
-		err = json.Unmarshal(j, configAdmin)
+		err = json.Unmarshal(j, configRoot)
 		if err != nil {
 			panic(err)
 		}
 	}
-	wrapper.matcher.Load(netloc.New(AdminURI, "", ""), configAdmin)
+	wrapper.matcher.Load(netloc.New(RootURI, "", ""), configRoot)
 }
 
 // NetlocFromString TODO
@@ -336,10 +336,10 @@ func (wrapper *RequestWrapper) Wrap(req *request.Request) (*netloc.Netloc, *Requ
 		reqConfig = rule.(*RequestConfig)
 		wrapper.Merge(req, reqConfig, false)
 	}
-	nlcAdmin, ruleAdmin := wrapper.matcher.Get(AdminNetloc)
-	if nlcAdmin != nil {
-		reqConfigAdmin := ruleAdmin.(*RequestConfig)
-		wrapper.Merge(req, reqConfigAdmin, true)
+	nlcRoot, ruleRoot := wrapper.matcher.Get(RootNetloc)
+	if nlcRoot != nil {
+		reqConfigRoot := ruleRoot.(*RequestConfig)
+		wrapper.Merge(req, reqConfigRoot, true)
 	}
 	return nlc, reqConfig
 }
