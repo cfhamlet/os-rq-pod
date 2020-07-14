@@ -175,7 +175,7 @@ func (queue *Queue) Push(request *request.Request) (result sth.Result, err error
 	if request.Meta == nil {
 		request.Meta = make(map[string]interface{})
 	}
-	request.Meta["_pod_in_"] = time.Now().Unix()
+	request.Meta["pod.enqueue"] = time.Now().Unix()
 	j, err := json.Marshal(request)
 	if err == nil {
 		rsize, err := queue.box.client.RPush(queue.redisKey, j).Result()
@@ -213,7 +213,7 @@ func (queue *Queue) Pop() (req *request.Request, qsize int64, err error) {
 		if req.Meta == nil {
 			req.Meta = make(map[string]interface{})
 		}
-		req.Meta["_pod_out_"] = time.Now().Unix()
+		req.Meta["pod.dequeue"] = time.Now().Unix()
 	}
 	return
 }
