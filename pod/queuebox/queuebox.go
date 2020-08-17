@@ -158,7 +158,7 @@ func (box *QueueBox) withLockMustExist(qid sth.QueueID, f CallByQueue, rLock boo
 	return
 }
 
-func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err error) {
+func (box *QueueBox) pushRequest(req *request.Request, head bool) (result sth.Result, err error) {
 	qid := sth.QueueIDFromRequest(req)
 	iid := qid.ItemID()
 	workingQueues := box.statusQueues[Working]
@@ -174,7 +174,7 @@ func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err e
 			})
 		} else {
 			queue := item.(*Queue)
-			result, err = queue.Push(req)
+			result, err = queue.Push(req, head)
 		}
 	})
 	box.RUnlock(iid)
@@ -187,7 +187,7 @@ func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err e
 	if workingQueues.Get(iid) != nil ||
 		pausedQueues.Get(iid) != nil {
 		box.Unlock(iid)
-		return box.pushRequest(req)
+		return box.pushRequest(req, head)
 	}
 	newQueue := NewQueue(box, qid)
 	_, err = newQueue.Sync()
@@ -196,7 +196,7 @@ func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err e
 		return
 	}
 	if newQueue.Status() == Working {
-		result, err = newQueue.Push(req)
+		result, err = newQueue.Push(req, head)
 		if err == nil || newQueue.QueueSize() > 0 {
 			workingQueues.Add(newQueue)
 		}
@@ -208,15 +208,15 @@ func (box *QueueBox) pushRequest(req *request.Request) (result sth.Result, err e
 	return
 }
 
-func (box *QueueBox) xxPushRequest(req *request.Request) (result sth.Result, err error) {
-	return box.pushRequest(req)
+func (box *QueueBox) xxPushRequest(req *request.Request, head bool) (result sth.Result, err error) {
+	return box.pushRequest(req, head)
 }
 
 // PushRequest TODO
-func (box *QueueBox) PushRequest(req *request.Request) (result sth.Result, err error) {
+func (box *QueueBox) PushRequest(req *request.Request, head bool) (result sth.Result, err error) {
 	return box.doOnCoreWorking(
 		func() (sth.Result, error) {
-			return box.xxPushRequest(req)
+			return box.xxPushRequest(req, head)
 		},
 	)
 }
@@ -266,6 +266,8 @@ func (box *QueueBox) PopRequest(qid sth.QueueID) (req *request.Request, err erro
 	if r == nil {
 		return nil, e
 	}
+	message := box.Message()
+	message.Publish(serv.TimingUrlPoped, r)
 	return r.(*request.Request), e
 }
 
@@ -280,6 +282,8 @@ func (box *QueueBox) ClearQueue(qid sth.QueueID) (sth.Result, error) {
 					box.statusQueues[Working].Delete(queue.ItemID())
 				}
 			}
+			message := box.Message()
+			message.Publish(serv.TimingUrlPoped, qid)
 			return
 		}, false)
 }
@@ -290,6 +294,8 @@ func (box *QueueBox) DeleteQueue(qid sth.QueueID) (sth.Result, error) {
 		func(queue *Queue) (result sth.Result, err error) {
 			result, err = queue.Clear(true)
 			box.statusQueues[queue.Status()].Delete(qid.ItemID())
+			message := box.Message()
+			message.Publish(serv.TimingUrlPoped, qid)
 			return
 		}, false)
 }

@@ -162,7 +162,7 @@ func (queue *Queue) Queuing() int64 {
 }
 
 // Push TODO
-func (queue *Queue) Push(request *request.Request) (result sth.Result, err error) {
+func (queue *Queue) Push(request *request.Request, head bool) (result sth.Result, err error) {
 
 	queuing := queue.incrQueuing(1)
 	defer queue.decrQueuing(1)
@@ -178,7 +178,11 @@ func (queue *Queue) Push(request *request.Request) (result sth.Result, err error
 	request.Meta["pod.enqueue"] = time.Now().Unix()
 	j, err := json.Marshal(request)
 	if err == nil {
-		rsize, err := queue.box.client.RPush(queue.redisKey, j).Result()
+		f := queue.box.client.RPush
+		if head {
+			f = queue.box.client.LPush
+		}
+		rsize, err := f(queue.redisKey, j).Result()
 		if err == nil {
 			qsize := queue.updateInput(1)
 			result = sth.Result{"rsize": rsize, "qsize": qsize}
