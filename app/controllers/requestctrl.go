@@ -22,8 +22,8 @@ func NewRequestController(queueBox *queuebox.QueueBox, guard *redisguard.Guard) 
 	return &RequestController{queueBox, guard}
 }
 
-// PushRequest TODO
-func (ctrl *RequestController) PushRequest(c *gin.Context) (result sth.Result, err error) {
+// EnqueueRequest TODO
+func (ctrl *RequestController) EnqueueRequest(c *gin.Context) (result sth.Result, err error) {
 	if err = ctrl.guard.Guard(); err != nil {
 		return
 	}
@@ -38,19 +38,19 @@ func (ctrl *RequestController) PushRequest(c *gin.Context) (result sth.Result, e
 	if err != nil {
 		return
 	}
-	result, err = ctrl.queueBox.PushRequest(req, false)
+	result, err = ctrl.queueBox.EnqueueRequest(req, false)
 	c.Header("Access-Control-Allow-Origin", "*")
 	return
 }
 
-// PopRequest TODO
-func (ctrl *RequestController) PopRequest(c *gin.Context) (result sth.Result, err error) {
+// DequeueRequest TODO
+func (ctrl *RequestController) DequeueRequest(c *gin.Context) (result sth.Result, err error) {
 	q := c.Query("q")
 	var qid sth.QueueID
 	qid, err = QueueIDFromQuery(q)
 	if err == nil {
 		var req *request.Request
-		req, err = ctrl.queueBox.PopRequest(qid)
+		req, err = ctrl.queueBox.DequeueRequest(qid)
 		if err == nil {
 			c.JSON(http.StatusOK, req)
 		}

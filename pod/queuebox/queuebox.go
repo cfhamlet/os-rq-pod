@@ -158,7 +158,7 @@ func (box *QueueBox) withLockMustExist(qid sth.QueueID, f CallByQueue, rLock boo
 	return
 }
 
-func (box *QueueBox) pushRequest(req *request.Request, head bool) (result sth.Result, err error) {
+func (box *QueueBox) enqueueRequest(req *request.Request, head bool) (result sth.Result, err error) {
 	qid := sth.QueueIDFromRequest(req)
 	iid := qid.ItemID()
 	workingQueues := box.statusQueues[Working]
@@ -174,7 +174,7 @@ func (box *QueueBox) pushRequest(req *request.Request, head bool) (result sth.Re
 			})
 		} else {
 			queue := item.(*Queue)
-			result, err = queue.Push(req, head)
+			result, err = queue.enqueue(req, head)
 		}
 	})
 	box.RUnlock(iid)
@@ -187,7 +187,7 @@ func (box *QueueBox) pushRequest(req *request.Request, head bool) (result sth.Re
 	if workingQueues.Get(iid) != nil ||
 		pausedQueues.Get(iid) != nil {
 		box.Unlock(iid)
-		return box.pushRequest(req, head)
+		return box.enqueueRequest(req, head)
 	}
 	newQueue := NewQueue(box, qid)
 	_, err = newQueue.Sync()
@@ -196,7 +196,7 @@ func (box *QueueBox) pushRequest(req *request.Request, head bool) (result sth.Re
 		return
 	}
 	if newQueue.Status() == Working {
-		result, err = newQueue.Push(req, head)
+		result, err = newQueue.enqueue(req, head)
 		if err == nil || newQueue.QueueSize() > 0 {
 			workingQueues.Add(newQueue)
 		}
@@ -208,20 +208,20 @@ func (box *QueueBox) pushRequest(req *request.Request, head bool) (result sth.Re
 	return
 }
 
-func (box *QueueBox) xxPushRequest(req *request.Request, head bool) (result sth.Result, err error) {
-	return box.pushRequest(req, head)
+func (box *QueueBox) xxEnqueueRequest(req *request.Request, head bool) (result sth.Result, err error) {
+	return box.enqueueRequest(req, head)
 }
 
-// PushRequest TODO
-func (box *QueueBox) PushRequest(req *request.Request, head bool) (result sth.Result, err error) {
+// EnqueueRequest TODO
+func (box *QueueBox) EnqueueRequest(req *request.Request, head bool) (result sth.Result, err error) {
 	return box.doOnCoreWorking(
 		func() (sth.Result, error) {
-			return box.xxPushRequest(req, head)
+			return box.xxEnqueueRequest(req, head)
 		},
 	)
 }
 
-func (box *QueueBox) xxPopRequest(qid sth.QueueID) (req *request.Request, err error) {
+func (box *QueueBox) xxDequeueRequest(qid sth.QueueID) (req *request.Request, err error) {
 	iid := qid.ItemID()
 	deleteIdle := false
 	workingQueues := box.statusQueues[Working]
@@ -241,7 +241,7 @@ func (box *QueueBox) xxPopRequest(qid sth.QueueID) (req *request.Request, err er
 		} else {
 			var qsize int64
 			queue := item.(*Queue)
-			req, qsize, err = queue.Pop()
+			req, qsize, err = queue.Dequeue()
 			if qsize <= 0 || err == redis.Nil {
 				deleteIdle = true
 			}
@@ -257,11 +257,11 @@ func (box *QueueBox) xxPopRequest(qid sth.QueueID) (req *request.Request, err er
 	return
 }
 
-// PopRequest TODO
-func (box *QueueBox) PopRequest(qid sth.QueueID) (req *request.Request, err error) {
+// DequeueRequest TODO
+func (box *QueueBox) DequeueRequest(qid sth.QueueID) (req *request.Request, err error) {
 	r, e := box.DoWithLockOnWorkStatus(
 		func() (interface{}, error) {
-			return box.xxPopRequest(qid)
+			return box.xxDequeueRequest(qid)
 		}, true, true)
 	if r == nil {
 		return nil, e
