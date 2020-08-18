@@ -38,7 +38,7 @@ func (ctrl *RequestController) PushRequest(c *gin.Context) (result sth.Result, e
 	if err != nil {
 		return
 	}
-	result, err = ctrl.queueBox.PushRequest(req)
+	result, err = ctrl.queueBox.PushRequest(req, false)
 	c.Header("Access-Control-Allow-Origin", "*")
 	return
 }
