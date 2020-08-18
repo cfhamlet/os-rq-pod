@@ -161,21 +161,20 @@ func (queue *Queue) Queuing() int64 {
 	return atomic.LoadInt64(&queue.queuing)
 }
 
-// Push TODO
-func (queue *Queue) Push(request *request.Request, head bool) (result sth.Result, err error) {
+func (queue *Queue) enqueue(request *request.Request, head bool) (result sth.Result, err error) {
 
 	queuing := queue.incrQueuing(1)
 	defer queue.decrQueuing(1)
 
 	if queuing > 198405 {
-		err = global.UnavailableError(fmt.Sprintf("%s too many push requests %d", queue.ID(), queuing))
+		err = global.UnavailableError(fmt.Sprintf("%s too many enqueue requests %d", queue.ID(), queuing))
 		return
 	}
 
 	if request.Meta == nil {
 		request.Meta = make(map[string]interface{})
 	}
-	request.Meta["pod.enqueue"] = time.Now().Unix()
+	request.Meta["pod.enqtime"] = time.Now().Unix()
 	j, err := json.Marshal(request)
 	if err == nil {
 		f := queue.box.client.RPush
@@ -191,8 +190,8 @@ func (queue *Queue) Push(request *request.Request, head bool) (result sth.Result
 	return
 }
 
-// Pop TODO
-func (queue *Queue) Pop() (req *request.Request, qsize int64, err error) {
+// Dequeue TODO
+func (queue *Queue) Dequeue() (req *request.Request, qsize int64, err error) {
 
 	dequeuing := queue.incrDequeuing(1)
 	defer queue.decrDequeuing(1)
@@ -217,7 +216,7 @@ func (queue *Queue) Pop() (req *request.Request, qsize int64, err error) {
 		if req.Meta == nil {
 			req.Meta = make(map[string]interface{})
 		}
-		req.Meta["pod.dequeue"] = time.Now().Unix()
+		req.Meta["pod.deqtime"] = time.Now().Unix()
 	}
 	return
 }
