@@ -266,8 +266,6 @@ func (box *QueueBox) DequeueRequest(qid sth.QueueID) (req *request.Request, err 
 	if r == nil {
 		return nil, e
 	}
-	message := box.Message()
-	message.Publish(serv.TimingUrlPoped, r)
 	return r.(*request.Request), e
 }
 
@@ -282,8 +280,6 @@ func (box *QueueBox) ClearQueue(qid sth.QueueID) (sth.Result, error) {
 					box.statusQueues[Working].Delete(queue.ItemID())
 				}
 			}
-			message := box.Message()
-			message.Publish(serv.TimingUrlPoped, qid)
 			return
 		}, false)
 }
@@ -294,8 +290,6 @@ func (box *QueueBox) DeleteQueue(qid sth.QueueID) (sth.Result, error) {
 		func(queue *Queue) (result sth.Result, err error) {
 			result, err = queue.Clear(true)
 			box.statusQueues[queue.Status()].Delete(qid.ItemID())
-			message := box.Message()
-			message.Publish(serv.TimingUrlPoped, qid)
 			return
 		}, false)
 }
