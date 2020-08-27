@@ -38,7 +38,7 @@ func New(conf *viper.Viper) *Serv {
 		conf,
 		proc,
 		Init,
-		messagebus.New(1000),
+		messagebus.New(100),
 		&sync.RWMutex{},
 	}
 	return serv
