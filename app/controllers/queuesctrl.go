@@ -75,3 +75,13 @@ func (ctrl *QueuesController) Queues(c *gin.Context) (result sth.Result, err err
 	}
 	return
 }
+
+// DeleteQueues TODO
+func (ctrl *QueuesController) DeleteQueues(c *gin.Context) (result sth.Result, err error) {
+	return ctrl.queueBox.DeleteQueues()
+}
+
+// ClearQueues TODO
+func (ctrl *QueuesController) ClearQueues(c *gin.Context) (result sth.Result, err error) {
+	return ctrl.queueBox.ClearQueues()
+}
