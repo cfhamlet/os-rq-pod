@@ -191,7 +191,6 @@ func (serv *Serv) DoWithLockOnWorkStatus(f func() (interface{}, error), rLock bo
 			(mustWorking && serv.status != Working) {
 			return nil, &StatusError{serv.status}
 		}
-		fmt.Print("KKKKKKKKKK",serv.status)
 		return f()
 
 	}, rLock)
