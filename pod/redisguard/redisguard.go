@@ -66,7 +66,7 @@ func (task *Task) Stop() {
 // Guard TODO
 type Guard struct {
 	*serv.Serv
-	queuBox        *queuebox.QueueBox
+	queueBox       *queuebox.QueueBox
 	client         *redis.Client
 	maxRedisMemory int64
 	redisMemory    int64
