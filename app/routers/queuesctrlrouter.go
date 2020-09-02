@@ -10,7 +10,9 @@ import (
 func RouteQueuesCtrl(root ginserv.RouterGroup, ctrl *controllers.QueuesController) {
 	g := root.Group("/queues/")
 	routes := []*route.Route{
+		route.New(g.DELETE, "/", ctrl.DeleteQueues),
 		route.New(g.POST, "/", ctrl.Queues),
+		route.New(g.POST, "/clear/", ctrl.ClearQueues),
 		route.New(g.GET, "/info/", ctrl.QueuesInfo),
 		route.New(g.GET, "/view/", ctrl.ViewQueues),
 	}

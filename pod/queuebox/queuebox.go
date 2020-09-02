@@ -102,7 +102,7 @@ func (box *QueueBox) load(scanner *utils.Scanner, keyToQueueID func(string) (sth
 	return scanner.Scan(
 		func(keys []string) (err error) {
 			for _, key := range keys {
-				err = box.Serv.SetStatus(serv.Preparing)
+				_, err = box.Serv.SetStatus(serv.Preparing)
 				if err != nil {
 					break
 				}
@@ -454,4 +454,40 @@ func (box *QueueBox) SyncQueue(qid sth.QueueID, force bool) (result sth.Result, 
 	}
 	queue := NewQueue(box, qid)
 	return box.syncQueue(queue)
+}
+
+// ClearOrDeleteQueues TODO
+func (box *QueueBox) ClearOrDeleteQueues(Delete bool) (result sth.Result, err error) {
+	var qc int64
+	var rc int64
+	result = sth.Result{}
+	var oldStatus serv.Status
+	if oldStatus,err=box.Serv.SetStatus(serv.Cleaning);err==nil{
+		defer box.Serv.SetStatus(oldStatus)
+		for status := range box.statusQueues {
+			queues := box.statusQueues[status]
+			qs := queues.Size()
+			qc+=int64(qs)
+			q:=make([]sth.QueueID,0)
+			iterator := slicemap.NewSubIter(queues.Map, 0, queues.Size())
+			iterator.Iter(
+				func(item slicemap.Item) bool {
+					queue := item.(*Queue)
+					rc+=queue.QueueSize()
+					q=append(q, queue.ID())
+					return true
+				},
+			)
+			f:=box.ClearQueue
+			if Delete{
+				f=box.DeleteQueue
+			}
+			for i:=range q{
+				f(q[i])
+			}
+		}
+		result["queueCount"]=qc
+		result["requsetCount"]=rc
+	}
+	return
 }

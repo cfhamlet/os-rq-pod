@@ -14,11 +14,12 @@ func _() {
 	_ = x[Paused-4]
 	_ = x[Stopping-5]
 	_ = x[Stopped-6]
+	_ = x[Cleaning-7]
 }
 
-const _Status_name = "initpreparingworkingpausedstoppingstopped"
+const _Status_name = "initpreparingworkingpausedstoppingstoppedCleaning"
 
-var _Status_index = [...]uint8{0, 4, 13, 20, 26, 34, 41}
+var _Status_index = [...]uint8{0, 4, 13, 20, 26, 34, 41, 49}
 
 func (i Status) String() string {
 	i -= 1
