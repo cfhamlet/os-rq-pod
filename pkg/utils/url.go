@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+
+	"gopkg.in/go-playground/validator.v9"
 )
 
 // ParsedURL TODO
@@ -12,6 +14,8 @@ type ParsedURL struct {
 	Host   string
 	Port   string
 }
+
+var hostnameValidate = validator.New()
 
 // NewParsedURL TODO
 func NewParsedURL(rawURL string) (parsedURL *ParsedURL, err error) {
@@ -28,7 +32,10 @@ func NewParsedURL(rawURL string) (parsedURL *ParsedURL, err error) {
 		if host == "" {
 			err = fmt.Errorf("empty host %s", parsed.Host)
 		} else {
-			parsedURL = &ParsedURL{parsed, host, port}
+			err = hostnameValidate.Var(host, "hostname|ip")
+			if err == nil {
+				parsedURL = &ParsedURL{parsed, host, port}
+			}
 		}
 	}
 	if err != nil {
