@@ -467,6 +467,7 @@ func (box *QueueBox) ClearOrDeleteQueues(Delete bool) (result sth.Result, err er
 	if oldStatus,err=box.Serv.SetStatus(serv.Cleaning);err==nil{
 		defer box.Serv.SetStatus(oldStatus)
 		for status := range box.statusQueues {
+			pausedCount:=0
 			queues := box.statusQueues[status]
 			for queues.Size()>0{
 				iids:=make([]uint64,0)
@@ -492,9 +493,11 @@ func (box *QueueBox) ClearOrDeleteQueues(Delete bool) (result sth.Result, err er
 						queues.Delete(iids[i])
 						box.Unlock(iids[i])
 					}
+				}else{
+					pausedCount+=len(iids)
 				}
 				qc+=len(iids)
-				if err != nil {
+				if err != nil ||pausedCount>= queues.Size(){
 					goto END
 				}
 			}
