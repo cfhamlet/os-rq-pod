@@ -2,7 +2,6 @@ package queuebox
 
 import (
 	"context"
-
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/serv"
@@ -13,6 +12,9 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pod/reqwrap"
 	"github.com/go-redis/redis/v7"
 )
+
+// CLEAR_QUEUES_NUM TODO
+const CLEAR_QUEUES_NUM int = 1000
 
 // QueueBox TODO
 type QueueBox struct {
@@ -458,7 +460,7 @@ func (box *QueueBox) SyncQueue(qid sth.QueueID, force bool) (result sth.Result, 
 
 // ClearOrDeleteQueues TODO
 func (box *QueueBox) ClearOrDeleteQueues(Delete bool) (result sth.Result, err error) {
-	var qc int64
+	var qc int
 	var rc int64
 	result = sth.Result{}
 	var oldStatus serv.Status
@@ -466,26 +468,38 @@ func (box *QueueBox) ClearOrDeleteQueues(Delete bool) (result sth.Result, err er
 		defer box.Serv.SetStatus(oldStatus)
 		for status := range box.statusQueues {
 			queues := box.statusQueues[status]
-			qs := queues.Size()
-			qc+=int64(qs)
-			q:=make([]sth.QueueID,0)
-			iterator := slicemap.NewSubIter(queues.Map, 0, queues.Size())
-			iterator.Iter(
-				func(item slicemap.Item) bool {
-					queue := item.(*Queue)
-					rc+=queue.QueueSize()
-					q=append(q, queue.ID())
-					return true
-				},
-			)
-			f:=box.ClearQueue
-			if Delete{
-				f=box.DeleteQueue
-			}
-			for i:=range q{
-				f(q[i])
+			for queues.Size()>0{
+				iids:=make([]uint64,0)
+				iterator := slicemap.NewSubIter(queues.Map, 0, CLEAR_QUEUES_NUM)
+				iterator.Iter(
+					func(item slicemap.Item) bool {
+						queue := item.(*Queue)
+						rc+=queue.QueueSize()
+						iid:=queue.ItemID()
+						box.RLock(iid)
+						_, err = queue.Clear(Delete)
+						box.RUnlock(iid)
+						if err!=nil{
+							return false
+						}
+						iids=append(iids,iid)
+						return true
+					},
+				)
+				if Delete||status==Working{
+					for i := range iids{
+						box.Lock(iids[i])
+						queues.Delete(iids[i])
+						box.Unlock(iids[i])
+					}
+				}
+				qc+=len(iids)
+				if err != nil {
+					goto END
+				}
 			}
 		}
+		END:
 		result["queueCount"]=qc
 		result["requsetCount"]=rc
 	}
