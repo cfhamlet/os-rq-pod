@@ -1,7 +1,6 @@
 package queuebox
 
 import (
-	"fmt"
 	"context"
 
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
@@ -12,11 +11,9 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/cfhamlet/os-rq-pod/pod/global"
 	"github.com/cfhamlet/os-rq-pod/pod/reqwrap"
+	"github.com/cfhamlet/os-rq-pod/pkg/heap"
 	"github.com/go-redis/redis/v7"
 )
-
-// LOCK_QUEUES_NUM TODO
-const LOCK_QUEUES_NUM int = 100
 
 // QueueBox TODO
 type QueueBox struct {
@@ -343,6 +340,56 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) sth.Result
 	}
 }
 
+func (box *QueueBox) topNQueues(iter slicemap.Iterator, k int) []sth.Result {
+	h := heap.NewHeap(func(a interface{}, b interface{}) bool{
+			qa:=a.(*Queue)
+			qb:=b.(*Queue)
+			return qa.QueueSize()<qb.QueueSize()
+		},
+	)
+	iter.Iter(
+		func(item slicemap.Item) bool {
+			queue := item.(*Queue)
+			h.Push(queue)
+			if(h.Len()>k){
+				h.Pop()
+			}
+			return true
+		},
+	)
+	out := []sth.Result{}
+	for {
+		var q interface{}
+		if q:=h.Pop();q==nil {
+			break
+		}
+		queue:=q.(*Queue)
+		r := sth.Result{"qid": queue.ID(), "qsize": queue.QueueSize()}
+		out = append(out, r)
+	}
+	return out
+}
+
+// ViewTopNQueues TODO
+func (box *QueueBox) ViewTopNQueues(k int, status QueueStatus) sth.Result {
+	queues := box.statusQueues[status]
+	l := queues.Size()
+	var out []sth.Result
+	if l <= 0 || k <= 0 {
+		out = []sth.Result{}
+	} else {
+		iterator := slicemap.NewBaseIter(queues.Map)
+		out = box.topNQueues(iterator, k)
+	}
+	return sth.Result{
+		"k":      k,
+		"queues": out,
+		"count":  len(out),
+		"total":  l,
+		"status": status,
+	}
+}
+
 func (box *QueueBox) xxQueues(k int) sth.Result {
 	queues := box.statusQueues[Working]
 	l := queues.Size()
@@ -458,55 +505,4 @@ func (box *QueueBox) SyncQueue(qid sth.QueueID, force bool) (result sth.Result, 
 	}
 	queue := NewQueue(box, qid)
 	return box.syncQueue(queue)
-}
-
-// DeleteQueues TODO
-func (box *QueueBox) DeleteQueues() (result sth.Result, err error) {
-	return
-}
-
-// ClearQueues TODO
-func (box *QueueBox) ClearQueues() (result sth.Result, err error) {
-	var qc int64
-	var rc int64
-	var iid uint64
-	result = sth.Result{}
-	bllen:=box.BulkLockLen()
-	fmt.Print("bllen",bllen)
-	box.RLockAll(iid)
-	for status := range box.statusQueues {
-		queues := box.statusQueues[status]
-		qs := queues.Size()
-		qc+=int64(qs)
-		iids := make([]uint64, 0)
-		rks := make([]string, 0)
-		var s, e int=0, LOCK_QUEUES_NUM
-		for ; s<qs; s,e=s+LOCK_QUEUES_NUM,e+LOCK_QUEUES_NUM {
-			if e>qs{
-				e=qs
-			}
-			iterator := slicemap.NewSubIter(queues.Map, s, e-s)
-			iterator.Iter(
-				func(item slicemap.Item) bool {
-					queue := item.(*Queue)
-					rc+=queue.QueueSize()
-					qid:=queue.ID()
-					rks=append(rks, RedisKeyFromQueueID(qid))
-					iids=append(iids, qid.ItemID())
-					return true
-				},
-			)
-			box.BatchRR2RL(iids)
-			err = box.client.Watch(func(tx *redis.Tx) error {
-				_, err = box.client.Del(rks...).Result()
-				return err
-			}, rks...)
-			box.BatchRL2RR(iids)
-		}
-	}
-	box.RUnlockAll(iid)
-
-	result["queueCount"]=qc
-	result["requsetCount"]=rc
-	return
 }
