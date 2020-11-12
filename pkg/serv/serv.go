@@ -48,9 +48,9 @@ func New(conf *viper.Viper) *Serv {
 func (serv *Serv) OnStart(ctx context.Context) (err error) {
 	serv.Lock()
 	defer serv.Unlock()
-	err = serv.setStatus(Preparing)
+	_, err = serv.setStatus(Preparing)
 	if err == nil {
-		err = serv.setStatus(Working)
+		_, err = serv.setStatus(Working)
 	}
 	switch err.(type) {
 	case *StatusConflictError:
@@ -64,9 +64,9 @@ func (serv *Serv) OnStart(ctx context.Context) (err error) {
 
 // OnStop TODO
 func (serv *Serv) OnStop(ctx context.Context) (err error) {
-	err = serv.SetStatus(Stopping)
+	_, err = serv.SetStatus(Stopping)
 	if err == nil {
-		err = serv.SetStatus(Stopping)
+		_, err = serv.SetStatus(Stopping)
 	}
 	return
 }
@@ -94,8 +94,8 @@ func (serv *Serv) Conf() *viper.Viper {
 }
 
 // setStatus TODO
-func (serv *Serv) setStatus(newStatus Status) (err error) {
-	oldStatus := serv.status
+func (serv *Serv) setStatus(newStatus Status) (oldStatus Status,err error) {
+	oldStatus = serv.status
 	if oldStatus == newStatus {
 		return
 	}
@@ -122,6 +122,18 @@ func (serv *Serv) setStatus(newStatus Status) (err error) {
 		case Paused:
 			fallthrough
 		case Stopping:
+			fallthrough
+		case Cleaning:
+		default:
+			err = e
+		}
+	case Cleaning:
+		switch newStatus {
+		case Working:
+			fallthrough
+		case Paused:
+			fallthrough
+		case Stopping:
 		default:
 			err = e
 		}
@@ -130,6 +142,8 @@ func (serv *Serv) setStatus(newStatus Status) (err error) {
 		case Working:
 			fallthrough
 		case Stopping:
+			fallthrough
+		case Cleaning:
 		default:
 			err = e
 		}
@@ -151,7 +165,7 @@ func (serv *Serv) setStatus(newStatus Status) (err error) {
 }
 
 // SetStatus TODO
-func (serv *Serv) SetStatus(newStatus Status) (err error) {
+func (serv *Serv) SetStatus(newStatus Status) (oldStatus Status, err error) {
 	serv.Lock()
 	defer serv.Unlock()
 	return serv.setStatus(newStatus)
@@ -203,7 +217,7 @@ func (serv *Serv) Toggle(pauseOrResume bool) (sth.Result, error) {
 			if !pauseOrResume {
 				status = Paused
 			}
-			err = serv.setStatus(status)
+			_, err = serv.setStatus(status)
 			if err == nil {
 				result = serv.Info()
 			}

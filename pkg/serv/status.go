@@ -41,6 +41,7 @@ const (
 	Paused           // paused
 	Stopping         // stopping
 	Stopped          // stopped
+	Cleaning         // Cleaning
 )
 
 // StatusMap TODO

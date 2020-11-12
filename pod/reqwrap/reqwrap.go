@@ -181,7 +181,7 @@ func (wrapper *RequestWrapper) Load() error {
 			isKey := false
 			var nlc *netloc.Netloc
 			for _, key := range keys {
-				err = wrapper.SetStatus(serv.Preparing)
+				_, err = wrapper.SetStatus(serv.Preparing)
 				if err != nil {
 					break
 				}
