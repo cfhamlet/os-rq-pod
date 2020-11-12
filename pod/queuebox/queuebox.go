@@ -10,6 +10,7 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/cfhamlet/os-rq-pod/pod/global"
 	"github.com/cfhamlet/os-rq-pod/pod/reqwrap"
+	"github.com/cfhamlet/os-rq-pod/pkg/heap"
 	"github.com/go-redis/redis/v7"
 )
 
@@ -334,6 +335,53 @@ func (box *QueueBox) ViewQueues(k int, start int, status QueueStatus) sth.Result
 	return sth.Result{
 		"k":      k,
 		"start":  start,
+		"queues": out,
+		"count":  len(out),
+		"total":  l,
+		"status": status,
+	}
+}
+
+func (box *QueueBox) topNQueues(iter slicemap.Iterator, k int) []sth.Result {
+	h := heap.NewHeap(func(a interface{}, b interface{}) bool{
+			qa:=a.(*Queue)
+			qb:=b.(*Queue)
+			return qa.QueueSize()<qb.QueueSize()
+		},
+	)
+	iter.Iter(
+		func(item slicemap.Item) bool {
+			queue := item.(*Queue)
+			h.Push(queue)
+			if(h.Len()>k){
+				h.Pop()
+			}
+			return true
+		},
+	)
+	out := make([]sth.Result, h.Len())
+	for i:=h.Len()-1; i>=0; i-- {
+		q:=h.Pop()
+		queue:=q.(*Queue)
+		r := sth.Result{"qid": queue.ID(), "qsize": queue.QueueSize()}
+		out[i]=r
+	}
+	return out
+}
+
+// ViewTopNQueues TODO
+func (box *QueueBox) ViewTopNQueues(k int, status QueueStatus) sth.Result {
+	queues := box.statusQueues[status]
+	l := queues.Size()
+	var out []sth.Result
+	if l <= 0 || k <= 0 {
+		out = []sth.Result{}
+	} else {
+		iterator := slicemap.NewBaseIter(queues.Map)
+		out = box.topNQueues(iterator, k)
+	}
+	return sth.Result{
+		"k":      k,
 		"queues": out,
 		"count":  len(out),
 		"total":  l,

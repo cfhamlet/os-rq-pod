@@ -15,6 +15,7 @@ func RouteQueuesCtrl(root ginserv.RouterGroup, ctrl *controllers.QueuesControlle
 		route.New(g.POST, "/clear/", ctrl.ClearQueues),
 		route.New(g.GET, "/info/", ctrl.QueuesInfo),
 		route.New(g.GET, "/view/", ctrl.ViewQueues),
+		route.New(g.GET, "/top/", ctrl.ViewTopNQueues),
 	}
 	route.Bind(routes, controllers.ErrorCode)
 }

@@ -2,7 +2,6 @@ package serv
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"sync"
 
