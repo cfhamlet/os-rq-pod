@@ -1,7 +1,6 @@
 package command
 
 import (
-	"github.com/cfhamlet/os-go-rq/utils"
 	"github.com/cfhamlet/os-rq-pod/app/controllers"
 	"github.com/cfhamlet/os-rq-pod/app/routers"
 	"github.com/cfhamlet/os-rq-pod/pkg/command"
@@ -10,6 +9,7 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/runner"
 	"github.com/cfhamlet/os-rq-pod/pkg/serv"
+	"github.com/cfhamlet/os-rq-pod/pkg/utils"
 	"github.com/cfhamlet/os-rq-pod/pod/global"
 	"github.com/cfhamlet/os-rq-pod/pod/queuebox"
 	"github.com/cfhamlet/os-rq-pod/pod/redisconfig"
