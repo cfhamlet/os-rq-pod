@@ -59,8 +59,10 @@ func (ctrl *QueuesController) ViewQueues(c *gin.Context) (result sth.Result, err
 
 	return
 }
+
 // ViewTopNQueues TODO
 func (ctrl *QueuesController) ViewTopNQueues(c *gin.Context) (result sth.Result, err error){
+
 
 	qs := c.DefaultQuery("status", utils.Text(queuebox.Working))
 	status, ok := queuebox.QueueStatusMap[qs]
@@ -97,4 +99,14 @@ func (ctrl *QueuesController) Queues(c *gin.Context) (result sth.Result, err err
 		result, err = ctrl.queueBox.Queues(int(k))
 	}
 	return
+}
+
+// DeleteQueues TODO
+func (ctrl *QueuesController) DeleteQueues(c *gin.Context) (result sth.Result, err error) {
+	return ctrl.queueBox.ClearOrDeleteQueues(true)
+}
+
+// ClearQueues TODO
+func (ctrl *QueuesController) ClearQueues(c *gin.Context) (result sth.Result, err error) {
+	return ctrl.queueBox.ClearOrDeleteQueues(false)
 }

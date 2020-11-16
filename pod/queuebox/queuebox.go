@@ -2,7 +2,6 @@ package queuebox
 
 import (
 	"context"
-
 	"github.com/cfhamlet/os-rq-pod/pkg/log"
 	"github.com/cfhamlet/os-rq-pod/pkg/request"
 	"github.com/cfhamlet/os-rq-pod/pkg/serv"
@@ -14,6 +13,9 @@ import (
 	"github.com/cfhamlet/os-rq-pod/pkg/heap"
 	"github.com/go-redis/redis/v7"
 )
+
+// CLEAR_QUEUES_NUM TODO
+const CLEAR_QUEUES_NUM int = 1000
 
 // QueueBox TODO
 type QueueBox struct {
@@ -103,7 +105,7 @@ func (box *QueueBox) load(scanner *utils.Scanner, keyToQueueID func(string) (sth
 	return scanner.Scan(
 		func(keys []string) (err error) {
 			for _, key := range keys {
-				err = box.Serv.SetStatus(serv.Preparing)
+				_, err = box.Serv.SetStatus(serv.Preparing)
 				if err != nil {
 					break
 				}
@@ -357,15 +359,12 @@ func (box *QueueBox) topNQueues(iter slicemap.Iterator, k int) []sth.Result {
 			return true
 		},
 	)
-	out := []sth.Result{}
-	for {
-		var q interface{}
-		if q:=h.Pop();q==nil {
-			break
-		}
+	out := make([]sth.Result, h.Len())
+	for i:=h.Len()-1; i>=0; i-- {
+		q:=h.Pop()
 		queue:=q.(*Queue)
 		r := sth.Result{"qid": queue.ID(), "qsize": queue.QueueSize()}
-		out = append(out, r)
+		out[i]=r
 	}
 	return out
 }
@@ -505,4 +504,55 @@ func (box *QueueBox) SyncQueue(qid sth.QueueID, force bool) (result sth.Result, 
 	}
 	queue := NewQueue(box, qid)
 	return box.syncQueue(queue)
+}
+
+// ClearOrDeleteQueues TODO
+func (box *QueueBox) ClearOrDeleteQueues(Delete bool) (result sth.Result, err error) {
+	var qc int
+	var rc int64
+	result = sth.Result{}
+	var oldStatus serv.Status
+	if oldStatus,err=box.Serv.SetStatus(serv.Cleaning);err==nil{
+		defer box.Serv.SetStatus(oldStatus)
+		for status := range box.statusQueues {
+			pausedCount:=0
+			queues := box.statusQueues[status]
+			for queues.Size()>0{
+				iids:=make([]uint64,0)
+				iterator := slicemap.NewSubIter(queues.Map, 0, CLEAR_QUEUES_NUM)
+				iterator.Iter(
+					func(item slicemap.Item) bool {
+						queue := item.(*Queue)
+						rc+=queue.QueueSize()
+						iid:=queue.ItemID()
+						box.RLock(iid)
+						_, err = queue.Clear(Delete)
+						box.RUnlock(iid)
+						if err!=nil{
+							return false
+						}
+						iids=append(iids,iid)
+						return true
+					},
+				)
+				if Delete||status==Working{
+					for i := range iids{
+						box.Lock(iids[i])
+						queues.Delete(iids[i])
+						box.Unlock(iids[i])
+					}
+				}else{
+					pausedCount+=len(iids)
+				}
+				qc+=len(iids)
+				if err != nil ||pausedCount>= queues.Size(){
+					goto END
+				}
+			}
+		}
+		END:
+		result["queueCount"]=qc
+		result["requsetCount"]=rc
+	}
+	return
 }

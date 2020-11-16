@@ -24,6 +24,7 @@ func (h heap) Less(i, j int) bool {
 
 // Swap TODO
 func (h heap) Swap(i, j int){
+	
 	h.array[i], h.array[j] = h.array[j], h.array[i]
 }
 
@@ -36,9 +37,6 @@ func (h *heap) Push(x interface{}) {
 func (h *heap) Pop() interface{} {
 	old := h.array
 	n := len(old)
-	if n == 0 {
-		return nil
-	}
 	x := old[n-1]
 	h.array = old[0 : n-1]
 	return x
@@ -46,7 +44,6 @@ func (h *heap) Pop() interface{} {
 
 // Top TODO
 func (h heap) Top() interface{} {
-	
 	if len(h.array) == 0 {
 		return nil
 	}
@@ -77,6 +74,9 @@ func (h *Heap) Push(x interface{}) {
 func (h *Heap) Pop() interface{} {
 	h.Lock()
 	defer h.Unlock()
+	if h.heap.Len() == 0 {
+		return nil
+	}
 	return cheap.Pop(&h.heap)
 }
 
