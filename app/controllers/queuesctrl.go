@@ -85,6 +85,7 @@ func (ctrl *QueuesController) ViewTopNQueues(c *gin.Context) (result sth.Result,
 
 	return
 }
+
 // Queues TODO
 func (ctrl *QueuesController) Queues(c *gin.Context) (result sth.Result, err error) {
 
