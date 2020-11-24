@@ -44,6 +44,7 @@ func (h *heap) Pop() interface{} {
 
 // Top TODO
 func (h heap) Top() interface{} {
+
 	if len(h.array) == 0 {
 		return nil
 	}
