@@ -32,7 +32,8 @@ func NewParsedURL(rawURL string) (parsedURL *ParsedURL, err error) {
 		if host == "" {
 			err = fmt.Errorf("empty host %s", parsed.Host)
 		} else {
-			err = hostnameValidate.Var(host, "hostname|ip")
+			fmt.Print(host)
+			err = hostnameValidate.Var(host, "hostname_rfc1123|ip")
 			if err == nil {
 				parsedURL = &ParsedURL{parsed, host, port}
 			}
